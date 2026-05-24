@@ -1,3 +1,6 @@
+import { loadEnv } from "./utils/loadEnv";
+loadEnv(); // must run before any process.env reads
+
 import { defaultConfig } from "./config/defaultConfig";
 import { ResearchOrchestrator } from "./orchestrator";
 import { runScheduler } from "./scheduler";
