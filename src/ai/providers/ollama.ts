@@ -1,6 +1,7 @@
 import http from "http";
 import https from "https";
 import { AIProvider } from "../aiProvider";
+import { log } from "../../utils/logger";
 
 interface OllamaChatResponse {
   message?: { content: string };
@@ -16,15 +17,25 @@ export class OllamaProvider implements AIProvider {
   ) {}
 
   async complete(prompt: string, maxTokens = 400): Promise<string> {
+    const start = Date.now();
     const url = `${this.baseUrl.replace(/\/$/, "")}/api/chat`;
-    const response = await postOllamaJson<OllamaChatResponse>(url, {
-      model: this.modelId,
-      stream: false,
-      options: { num_predict: maxTokens },
-      messages: [{ role: "user", content: prompt }]
-    });
+    log.debug("ollama request", { model: this.modelId, url, promptChars: prompt.length, maxTokens });
 
-    return response.message?.content?.trim() ?? "";
+    try {
+      const response = await postOllamaJson<OllamaChatResponse>(url, {
+        model: this.modelId,
+        stream: false,
+        options: { num_predict: maxTokens },
+        messages: [{ role: "user", content: prompt }]
+      });
+
+      const text = response.message?.content?.trim() ?? "";
+      log.debug("ollama response", { model: this.modelId, latencyMs: Date.now() - start, responseChars: text.length });
+      return text;
+    } catch (err) {
+      log.error("ollama request failed", { model: this.modelId, url, latencyMs: Date.now() - start, error: err instanceof Error ? err.message : String(err) });
+      throw err;
+    }
   }
 }
 

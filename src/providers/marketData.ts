@@ -6,6 +6,7 @@ import {
 } from "../types";
 import { getJson, withQuery } from "./http";
 import { FMP_API_BASE, YAHOO_CHART_API_BASE, YAHOO_QUOTE_API } from "../config/urls";
+import { log } from "../utils/logger";
 
 interface YahooChartResponse {
   chart?: {
@@ -53,6 +54,9 @@ interface FmpProfileResponse {
 // adequate for trend, volatility, and drawdown analysis.
 export class YahooMarketDataProvider implements MarketDataProvider {
   async fetchPriceHistory(ticker: string, range: string): Promise<PricePoint[]> {
+    const start = Date.now();
+    log.debug("yahoo price history fetch", { ticker, range });
+
     const url = withQuery(
       `${YAHOO_CHART_API_BASE}/${encodeURIComponent(ticker)}`,
       {
@@ -70,7 +74,7 @@ export class YahooMarketDataProvider implements MarketDataProvider {
 
     // Prefer adjusted closes when Yahoo returns them so splits/dividends do not
     // distort historical performance calculations.
-    return timestamps
+    const points = timestamps
       .map((timestamp, index) => ({
         date: new Date(timestamp * 1000).toISOString().slice(0, 10),
         close: close[index]
@@ -78,6 +82,8 @@ export class YahooMarketDataProvider implements MarketDataProvider {
       .filter((point): point is PricePoint => {
         return typeof point.close === "number" && Number.isFinite(point.close);
       });
+    log.debug("yahoo price history fetched", { ticker, range, points: points.length, latencyMs: Date.now() - start });
+    return points;
   }
 }
 
@@ -85,15 +91,20 @@ export class YahooMarketDataProvider implements MarketDataProvider {
 // so the orchestrator treats this provider as best-effort.
 export class YahooFundamentalsProvider implements FundamentalsProvider {
   async fetchFundamentals(ticker: string): Promise<FundamentalsSnapshot | undefined> {
+    const start = Date.now();
+    log.debug("yahoo fundamentals fetch", { ticker });
+
     const url = withQuery(YAHOO_QUOTE_API, {
       symbols: ticker
     });
     const response = await getJson<YahooQuoteResponse>(url, { timeoutMs: 15000 });
     const result = response.quoteResponse?.result?.[0];
     if (!result) {
+      log.debug("yahoo fundamentals empty", { ticker, latencyMs: Date.now() - start });
       return undefined;
     }
 
+    log.debug("yahoo fundamentals fetched", { ticker, latencyMs: Date.now() - start });
     return {
       ticker,
       asOf: result.regularMarketTime
@@ -115,6 +126,9 @@ export class FinancialModelingPrepFundamentalsProvider implements FundamentalsPr
   constructor(private readonly apiKey: string) {}
 
   async fetchFundamentals(ticker: string): Promise<FundamentalsSnapshot | undefined> {
+    const start = Date.now();
+    log.debug("fmp fundamentals fetch", { ticker });
+
     // These three endpoints are independent, so fetch them together to keep each
     // company's enrichment step reasonably quick.
     const [ratios, metrics, profile] = await Promise.all([
@@ -124,9 +138,11 @@ export class FinancialModelingPrepFundamentalsProvider implements FundamentalsPr
     ]);
 
     if (!ratios && !metrics && !profile) {
+      log.debug("fmp fundamentals empty", { ticker, latencyMs: Date.now() - start });
       return undefined;
     }
 
+    log.debug("fmp fundamentals fetched", { ticker, latencyMs: Date.now() - start });
     return {
       ticker,
       asOf: new Date().toISOString(),
@@ -166,6 +182,7 @@ export class CompositeFundamentalsProvider implements FundamentalsProvider {
       try {
         const snapshot = await provider.fetchFundamentals(ticker);
         if (snapshot) {
+          log.debug("composite fundamentals resolved", { ticker, source: snapshot.source });
           return snapshot;
         }
       } catch {
@@ -173,6 +190,7 @@ export class CompositeFundamentalsProvider implements FundamentalsProvider {
       }
     }
 
+    log.warn("composite fundamentals exhausted all providers", { ticker });
     return undefined;
   }
 }

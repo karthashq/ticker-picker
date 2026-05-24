@@ -2,6 +2,7 @@ import { GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { getJson, postForm, withQuery } from "./http";
 import { articleRelevance, envList } from "./newsProviderUtils";
 import { REDDIT_OAUTH_BASE, REDDIT_TOKEN_URL, REDDIT_WEB_BASE } from "../config/urls";
+import { log } from "../utils/logger";
 
 interface RedditListingResponse {
   data?: {
@@ -60,8 +61,10 @@ export class RedditProvider implements NewsProvider {
     const token = await this.getAccessToken();
     const articles: NewsArticle[] = [];
     const query = topic.keywords.slice(0, 4).join(" OR ");
+    log.debug("reddit fetch", { topic: topic.id, subreddits: this.subreddits.slice(0, 6).length });
 
     for (const subreddit of this.subreddits.slice(0, 6)) {
+      const start = Date.now();
       try {
         const url = withQuery(`${REDDIT_OAUTH_BASE}/r/${subreddit}/search`, {
           q: query,
@@ -78,6 +81,7 @@ export class RedditProvider implements NewsProvider {
           }
         });
 
+        const before = articles.length;
         for (const child of response.data?.children ?? []) {
           const post = child.data;
           if (!post?.title || !post.permalink) {
@@ -98,8 +102,10 @@ export class RedditProvider implements NewsProvider {
               Math.min(((post.score ?? 0) + (post.num_comments ?? 0)) / 100, 5)
           });
         }
+        log.debug("reddit subreddit fetched", { topic: topic.id, subreddit, count: articles.length - before, latencyMs: Date.now() - start });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        log.warn("reddit subreddit failed", { topic: topic.id, subreddit, latencyMs: Date.now() - start, error: message });
         this.warnings.push(`Reddit failed for r/${subreddit}: ${message}`);
       }
     }
@@ -114,6 +120,7 @@ export class RedditProvider implements NewsProvider {
       return this.accessToken;
     }
 
+    log.debug("reddit token fetch");
     const basic = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString("base64");
     const text = await postForm(
       REDDIT_TOKEN_URL,
@@ -133,6 +140,7 @@ export class RedditProvider implements NewsProvider {
 
     this.accessToken = tokenResponse.access_token;
     this.tokenExpiresAt = Date.now() + Math.max((tokenResponse.expires_in ?? 3600) - 60, 60) * 1000;
+    log.debug("reddit token acquired", { expiresInSeconds: tokenResponse.expires_in ?? 3600 });
     return this.accessToken;
   }
 }

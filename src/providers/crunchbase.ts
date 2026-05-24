@@ -2,6 +2,7 @@ import { GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { postJson } from "./http";
 import { articleRelevance } from "./newsProviderUtils";
 import { CRUNCHBASE_HOME, CRUNCHBASE_ORG_BASE, CRUNCHBASE_SEARCH_API } from "../config/urls";
+import { log } from "../utils/logger";
 
 interface CrunchbaseSearchResponse {
   entities?: Array<{
@@ -56,6 +57,9 @@ export class CrunchbaseProvider implements NewsProvider {
       limit: maxArticles
     };
 
+    const start = Date.now();
+    log.debug("crunchbase fetch", { topic: topic.id });
+
     try {
       const response = await postJson<CrunchbaseSearchResponse>(
         CRUNCHBASE_SEARCH_API,
@@ -68,7 +72,7 @@ export class CrunchbaseProvider implements NewsProvider {
         }
       );
 
-      return (response.entities ?? [])
+      const articles = (response.entities ?? [])
         .map(entity => {
           const name = entity.identifier?.value ?? "Unknown organization";
           const permalink = entity.identifier?.permalink ?? entity.uuid ?? entity.identifier?.uuid ?? "";
@@ -92,8 +96,11 @@ export class CrunchbaseProvider implements NewsProvider {
         })
         .filter(article => (article.relevanceScore ?? 0) > 0)
         .slice(0, maxArticles);
+      log.debug("crunchbase fetched", { topic: topic.id, count: articles.length, latencyMs: Date.now() - start });
+      return articles;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      log.warn("crunchbase failed", { topic: topic.id, latencyMs: Date.now() - start, error: message });
       this.warnings.push(`Crunchbase failed for ${topic.name}: ${message}`);
       return [];
     }

@@ -2,6 +2,7 @@ import { CompanyProfile, GrowthTopic, NewsArticle, NewsProvider } from "../types
 import { getJson } from "./http";
 import { articleRelevance, companiesForTopic } from "./newsProviderUtils";
 import { SEC_ARCHIVES_BASE, SEC_SUBMISSIONS_BASE } from "../config/urls";
+import { log } from "../utils/logger";
 
 interface SecSubmissionsResponse {
   cik?: string;
@@ -74,6 +75,7 @@ export class SecEdgarProvider implements NewsProvider {
   async fetchArticles(topic: GrowthTopic, maxArticles: number): Promise<NewsArticle[]> {
     const companies = companiesForTopic(topic, this.companyUniverse, 8);
     const articles: NewsArticle[] = [];
+    log.debug("sec edgar fetch", { topic: topic.id, companies: companies.length });
 
     for (const company of companies) {
       const cik = TICKER_CIK[company.ticker.toUpperCase()];
@@ -81,11 +83,14 @@ export class SecEdgarProvider implements NewsProvider {
         continue;
       }
 
+      const start = Date.now();
       try {
         const filings = await this.fetchCompanyFilings(company, cik, topic, maxArticles);
         articles.push(...filings);
+        log.debug("sec edgar ticker fetched", { topic: topic.id, ticker: company.ticker, count: filings.length, latencyMs: Date.now() - start });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        log.warn("sec edgar ticker failed", { topic: topic.id, ticker: company.ticker, latencyMs: Date.now() - start, error: message });
         this.warnings.push(`SEC EDGAR failed for ${company.ticker}: ${message}`);
       }
     }

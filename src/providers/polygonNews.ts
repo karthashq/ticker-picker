@@ -2,6 +2,7 @@ import { CompanyProfile, GrowthTopic, NewsArticle, NewsProvider } from "../types
 import { getJson, withQuery } from "./http";
 import { articleRelevance, companiesForTopic } from "./newsProviderUtils";
 import { POLYGON_NEWS_API } from "../config/urls";
+import { log } from "../utils/logger";
 
 interface PolygonNewsResponse {
   results?: Array<{
@@ -37,8 +38,10 @@ export class PolygonNewsProvider implements NewsProvider {
 
     const companies = companiesForTopic(topic, this.companyUniverse, 6);
     const articles: NewsArticle[] = [];
+    log.debug("polygon fetch", { topic: topic.id, companies: companies.length });
 
     for (const company of companies) {
+      const start = Date.now();
       try {
         const url = withQuery(POLYGON_NEWS_API, {
           ticker: company.ticker,
@@ -48,6 +51,7 @@ export class PolygonNewsProvider implements NewsProvider {
           apiKey: this.apiKey
         });
         const response = await getJson<PolygonNewsResponse>(url, { timeoutMs: 20000 });
+        const before = articles.length;
         for (const item of response.results ?? []) {
           if (!item.title || !item.article_url) {
             continue;
@@ -62,8 +66,10 @@ export class PolygonNewsProvider implements NewsProvider {
             relevanceScore: articleRelevance(topic, `${item.title} ${item.description ?? ""} ${company.name}`)
           });
         }
+        log.debug("polygon ticker fetched", { topic: topic.id, ticker: company.ticker, count: articles.length - before, latencyMs: Date.now() - start });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        log.warn("polygon ticker failed", { topic: topic.id, ticker: company.ticker, latencyMs: Date.now() - start, error: message });
         this.warnings.push(`Polygon failed for ${company.ticker}: ${message}`);
       }
     }

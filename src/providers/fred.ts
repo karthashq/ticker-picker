@@ -2,6 +2,7 @@ import { GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { getJson, withQuery } from "./http";
 import { articleRelevance } from "./newsProviderUtils";
 import { FRED_OBSERVATIONS_API, FRED_SERIES_BASE } from "../config/urls";
+import { log } from "../utils/logger";
 
 interface FredObservationsResponse {
   observations?: Array<{
@@ -49,15 +50,19 @@ export class FredMacroProvider implements NewsProvider {
       series.topics.includes(topic.id) || articleRelevance(topic, series.title) > 0
     );
     const articles: NewsArticle[] = [];
+    log.debug("fred fetch", { topic: topic.id, seriesCount: relevantSeries.length });
 
     for (const series of relevantSeries.slice(0, maxArticles)) {
+      const start = Date.now();
       try {
         const article = await this.fetchSeriesSignal(topic, series);
         if (article) {
           articles.push(article);
         }
+        log.debug("fred series fetched", { topic: topic.id, seriesId: series.id, found: !!article, latencyMs: Date.now() - start });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        log.warn("fred series failed", { topic: topic.id, seriesId: series.id, latencyMs: Date.now() - start, error: message });
         this.warnings.push(`FRED failed for ${series.id}: ${message}`);
       }
     }

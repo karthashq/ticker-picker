@@ -2,6 +2,7 @@ import { CompanyProfile, GrowthTopic, NewsArticle, NewsProvider } from "../types
 import { getJson, withQuery } from "./http";
 import { articleRelevance, companiesForTopic } from "./newsProviderUtils";
 import { BENZINGA_API } from "../config/urls";
+import { log } from "../utils/logger";
 
 type BenzingaNewsItem = {
   id?: number | string;
@@ -39,6 +40,9 @@ export class BenzingaNewsProvider implements NewsProvider {
       return [];
     }
 
+    const start = Date.now();
+    log.debug("benzinga fetch", { topic: topic.id, tickers });
+
     try {
       const url = withQuery(BENZINGA_API, {
         token: this.apiKey,
@@ -47,7 +51,7 @@ export class BenzingaNewsProvider implements NewsProvider {
         displayOutput: "full"
       });
       const response = await getJson<BenzingaNewsItem[]>(url, { timeoutMs: 25000 });
-      return response
+      const articles = response
         .filter(item => item.title && item.url)
         .map(item => {
           const teaser = Array.isArray(item.teasers) ? item.teasers.join(" ") : "";
@@ -62,8 +66,11 @@ export class BenzingaNewsProvider implements NewsProvider {
         })
         .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""))
         .slice(0, maxArticles);
+      log.debug("benzinga fetched", { topic: topic.id, count: articles.length, latencyMs: Date.now() - start });
+      return articles;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      log.warn("benzinga failed", { topic: topic.id, latencyMs: Date.now() - start, error: message });
       this.warnings.push(`Benzinga failed for ${topic.name}: ${message}`);
       return [];
     }

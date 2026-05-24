@@ -1,6 +1,7 @@
 import { GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { getText } from "./http";
 import { articleRelevance, parseRssItems, toIsoDate } from "./newsProviderUtils";
+import { log } from "../utils/logger";
 
 export class ConfiguredRssNewsProvider implements NewsProvider {
   readonly warnings: string[] = [];
@@ -21,9 +22,12 @@ export class ConfiguredRssNewsProvider implements NewsProvider {
       return [];
     }
 
+    const start = Date.now();
+    log.debug("rss fetch", { source: this.sourceName, topic: topic.id });
+
     try {
       const xml = await getText(rssUrl, { timeoutMs: 20000 });
-      return parseRssItems(xml)
+      const articles = parseRssItems(xml)
         .map(item => ({
           title: `${this.sourceName}: ${item.title}`,
           url: item.link,
@@ -35,8 +39,11 @@ export class ConfiguredRssNewsProvider implements NewsProvider {
         .filter(article => (article.relevanceScore ?? 0) > 0)
         .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""))
         .slice(0, maxArticles);
+      log.debug("rss fetched", { source: this.sourceName, topic: topic.id, count: articles.length, latencyMs: Date.now() - start });
+      return articles;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      log.warn("rss failed", { source: this.sourceName, topic: topic.id, latencyMs: Date.now() - start, error: message });
       this.warnings.push(`${this.sourceName} RSS failed for ${topic.name}: ${message}`);
       return [];
     }
