@@ -1,0 +1,21 @@
+{
+  "name": "ticker-picker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A TypeScript multi-agent research application for identifying growth themes and stock candidates.",
+  "main": "dist/src/cli.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/cli.js run",
+    "run": "node dist/src/cli.js run",
+    "schedule": "node dist/src/cli.js schedule",
+    "test": "npm run build && node dist/tests/run-tests.js"
+  },
+  "engines": {
+    "node": ">=16.10"
+  },
+  "devDependencies": {
+    "@types/node": "^16.18.126",
+    "typescript": "^5.8.3"
+  }
+}
