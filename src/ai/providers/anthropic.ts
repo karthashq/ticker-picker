@@ -1,5 +1,6 @@
 import { postJson } from "../../providers/http";
 import { AIProvider } from "../aiProvider";
+import { ANTHROPIC_API } from "../../config/urls";
 
 interface AnthropicMessagesResponse {
   content: Array<{ type: string; text: string }>;
@@ -16,7 +17,7 @@ export class AnthropicProvider implements AIProvider {
 
   async complete(prompt: string, maxTokens = 400): Promise<string> {
     const response = await postJson<AnthropicMessagesResponse>(
-      "https://api.anthropic.com/v1/messages",
+      ANTHROPIC_API,
       {
         model: this.modelId,
         max_tokens: maxTokens,

@@ -1,6 +1,7 @@
 import { CompanyProfile, GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { getJson, withQuery } from "./http";
 import { articleRelevance, companiesForTopic } from "./newsProviderUtils";
+import { POLYGON_NEWS_API } from "../config/urls";
 
 interface PolygonNewsResponse {
   results?: Array<{
@@ -39,7 +40,7 @@ export class PolygonNewsProvider implements NewsProvider {
 
     for (const company of companies) {
       try {
-        const url = withQuery("https://api.polygon.io/v2/reference/news", {
+        const url = withQuery(POLYGON_NEWS_API, {
           ticker: company.ticker,
           limit: Math.max(3, Math.ceil(maxArticles / 2)),
           sort: "published_utc",

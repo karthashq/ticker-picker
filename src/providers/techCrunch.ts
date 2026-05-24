@@ -1,6 +1,7 @@
 import { GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { getJson, withQuery } from "./http";
 import { articleRelevance } from "./newsProviderUtils";
+import { TECHCRUNCH_API } from "../config/urls";
 
 interface TechCrunchPost {
   date_gmt?: string;
@@ -18,7 +19,7 @@ export class TechCrunchProvider implements NewsProvider {
 
   async fetchArticles(topic: GrowthTopic, maxArticles: number): Promise<NewsArticle[]> {
     try {
-      const url = withQuery("https://techcrunch.com/wp-json/wp/v2/posts", {
+      const url = withQuery(TECHCRUNCH_API, {
         search: topic.keywords.slice(0, 3).join(" "),
         per_page: Math.min(maxArticles, 20),
         orderby: "date",

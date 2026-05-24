@@ -1,6 +1,7 @@
 import { CompanyProfile, GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { getJson } from "./http";
 import { articleRelevance, companiesForTopic } from "./newsProviderUtils";
+import { SEC_ARCHIVES_BASE, SEC_SUBMISSIONS_BASE } from "../config/urls";
 
 interface SecSubmissionsResponse {
   cik?: string;
@@ -101,7 +102,7 @@ export class SecEdgarProvider implements NewsProvider {
     maxArticles: number
   ): Promise<NewsArticle[]> {
     const response = await getJson<SecSubmissionsResponse>(
-      `https://data.sec.gov/submissions/CIK${cik}.json`,
+      `${SEC_SUBMISSIONS_BASE}/CIK${cik}.json`,
       {
         timeoutMs: 25000,
         headers: {
@@ -132,7 +133,7 @@ export class SecEdgarProvider implements NewsProvider {
 
       const description = recent.primaryDocDescription?.[index] || form;
       const accessionPath = accession.replace(/-/g, "");
-      const url = `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${accessionPath}/${primaryDocument}`;
+      const url = `${SEC_ARCHIVES_BASE}/${Number(cik)}/${accessionPath}/${primaryDocument}`;
       const title = `${company.ticker} ${form}: ${description}`;
 
       articles.push({

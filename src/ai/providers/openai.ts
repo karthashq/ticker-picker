@@ -1,5 +1,6 @@
 import { postJson } from "../../providers/http";
 import { AIProvider } from "../aiProvider";
+import { OPENAI_API } from "../../config/urls";
 
 interface OpenAIChatResponse {
   choices: Array<{ message: { content: string } }>;
@@ -16,7 +17,7 @@ export class OpenAIProvider implements AIProvider {
 
   async complete(prompt: string, maxTokens = 400): Promise<string> {
     const response = await postJson<OpenAIChatResponse>(
-      "https://api.openai.com/v1/chat/completions",
+      OPENAI_API,
       {
         model: this.modelId,
         max_tokens: maxTokens,

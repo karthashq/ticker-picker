@@ -1,13 +1,13 @@
 import { GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { getText } from "./http";
 import { articleRelevance, parseRssItems, toIsoDate } from "./newsProviderUtils";
+import { GOOGLE_TRENDS_RSS } from "../config/urls";
 
 export class GoogleTrendsRssProvider implements NewsProvider {
   readonly warnings: string[] = [];
 
   constructor(
-    private readonly rssUrl = process.env.GOOGLE_TRENDS_RSS_URL ??
-      "https://trends.google.com/trending/rss?geo=US"
+    private readonly rssUrl = process.env.GOOGLE_TRENDS_RSS_URL ?? GOOGLE_TRENDS_RSS
   ) {}
 
   async fetchArticles(topic: GrowthTopic, maxArticles: number): Promise<NewsArticle[]> {

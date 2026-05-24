@@ -1,6 +1,7 @@
 import { GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { getJson, withQuery } from "./http";
 import { articleRelevance } from "./newsProviderUtils";
+import { FRED_OBSERVATIONS_API, FRED_SERIES_BASE } from "../config/urls";
 
 interface FredObservationsResponse {
   observations?: Array<{
@@ -68,7 +69,7 @@ export class FredMacroProvider implements NewsProvider {
     topic: GrowthTopic,
     series: FredSeriesConfig
   ): Promise<NewsArticle | undefined> {
-    const url = withQuery("https://api.stlouisfed.org/fred/series/observations", {
+    const url = withQuery(FRED_OBSERVATIONS_API, {
       api_key: this.apiKey,
       file_type: "json",
       series_id: series.id,
@@ -96,7 +97,7 @@ export class FredMacroProvider implements NewsProvider {
 
     return {
       title: `FRED macro signal: ${series.title} was ${latest.value} on ${latest.date}${changeText}`,
-      url: `https://fred.stlouisfed.org/series/${series.id}`,
+      url: `${FRED_SERIES_BASE}/${series.id}`,
       source: "FRED",
       publishedAt: `${latest.date}T00:00:00Z`,
       matchedTopicId: topic.id,

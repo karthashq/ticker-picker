@@ -1,5 +1,6 @@
 import { GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { getJson, withQuery } from "./http";
+import { GDELT_API } from "../config/urls";
 
 interface GdeltArticle {
   title?: string;
@@ -24,7 +25,7 @@ export class GdeltNewsProvider implements NewsProvider {
     // skip very short single-word terms because they are too broad for GDELT.
     const queryTerms = topic.keywords.flatMap(formatGdeltTerm);
     const query = `(${queryTerms.length > 0 ? queryTerms.join(" OR ") : `"${topic.name}"`})`;
-    const url = withQuery("https://api.gdeltproject.org/api/v2/doc/doc", {
+    const url = withQuery(GDELT_API, {
       query,
       mode: "artlist",
       format: "json",

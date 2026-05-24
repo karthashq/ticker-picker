@@ -3,6 +3,7 @@ import { AnthropicProvider } from "./providers/anthropic";
 import { GeminiProvider } from "./providers/gemini";
 import { OllamaProvider } from "./providers/ollama";
 import { OpenAIProvider } from "./providers/openai";
+import { OLLAMA_DEFAULT_BASE_URL } from "../config/urls";
 
 // NullAIProvider is the default. It silently skips all AI enrichment so the
 // pipeline works identically to the pre-AI version when no key is configured.
@@ -50,7 +51,7 @@ export function buildAIProvider(): AIProvider {
 
   if (name === "ollama") {
     return new OllamaProvider(
-      process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
+      process.env.OLLAMA_BASE_URL ?? OLLAMA_DEFAULT_BASE_URL,
       model ?? "llama3.2"
     );
   }

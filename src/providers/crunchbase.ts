@@ -1,6 +1,7 @@
 import { GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { postJson } from "./http";
 import { articleRelevance } from "./newsProviderUtils";
+import { CRUNCHBASE_HOME, CRUNCHBASE_ORG_BASE, CRUNCHBASE_SEARCH_API } from "../config/urls";
 
 interface CrunchbaseSearchResponse {
   entities?: Array<{
@@ -57,7 +58,7 @@ export class CrunchbaseProvider implements NewsProvider {
 
     try {
       const response = await postJson<CrunchbaseSearchResponse>(
-        "https://api.crunchbase.com/api/v4/searches/organizations",
+        CRUNCHBASE_SEARCH_API,
         body,
         {
           timeoutMs: 25000,
@@ -79,8 +80,8 @@ export class CrunchbaseProvider implements NewsProvider {
           return {
             title,
             url: permalink
-              ? `https://www.crunchbase.com/organization/${permalink}`
-              : "https://www.crunchbase.com/",
+              ? `${CRUNCHBASE_ORG_BASE}/${permalink}`
+              : CRUNCHBASE_HOME,
             source: "Crunchbase",
             publishedAt: lastFundingAt ? `${lastFundingAt}T00:00:00Z` : undefined,
             matchedTopicId: topic.id,

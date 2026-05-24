@@ -1,4 +1,5 @@
 import https from "https";
+import { APP_URL } from "../config/urls";
 
 // Minimal HTTP options shared by the data providers. The app avoids a runtime
 // HTTP dependency so the first install stays small.
@@ -79,7 +80,7 @@ function requestText(
   const timeoutMs = options.timeoutMs ?? 20000;
   const headers = {
     "User-Agent":
-      "TickerPicker/0.1 (+https://local.app; investment research automation)",
+      `TickerPicker/0.1 (+${APP_URL}; investment research automation)`,
     Accept: "application/json,text/plain,*/*",
     ...(options.headers ?? {})
   };

@@ -1,6 +1,6 @@
-import { postJson } from "../../providers/http";
+import { postJson, withQuery } from "../../providers/http";
 import { AIProvider } from "../aiProvider";
-import { withQuery } from "../../providers/http";
+import { GEMINI_API_BASE } from "../../config/urls";
 
 interface GeminiResponse {
   candidates: Array<{
@@ -19,7 +19,7 @@ export class GeminiProvider implements AIProvider {
 
   async complete(prompt: string, maxTokens = 400): Promise<string> {
     const url = withQuery(
-      `https://generativelanguage.googleapis.com/v1beta/models/${this.modelId}:generateContent`,
+      `${GEMINI_API_BASE}/${this.modelId}:generateContent`,
       { key: this.apiKey }
     );
 

@@ -1,6 +1,7 @@
 import { GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { getJson, postForm, withQuery } from "./http";
 import { articleRelevance, envList } from "./newsProviderUtils";
+import { REDDIT_OAUTH_BASE, REDDIT_TOKEN_URL, REDDIT_WEB_BASE } from "../config/urls";
 
 interface RedditListingResponse {
   data?: {
@@ -62,7 +63,7 @@ export class RedditProvider implements NewsProvider {
 
     for (const subreddit of this.subreddits.slice(0, 6)) {
       try {
-        const url = withQuery(`https://oauth.reddit.com/r/${subreddit}/search`, {
+        const url = withQuery(`${REDDIT_OAUTH_BASE}/r/${subreddit}/search`, {
           q: query,
           restrict_sr: "1",
           sort: "new",
@@ -86,7 +87,7 @@ export class RedditProvider implements NewsProvider {
           const title = `r/${post.subreddit ?? subreddit}: ${post.title}`;
           articles.push({
             title,
-            url: `https://www.reddit.com${post.permalink}`,
+            url: `${REDDIT_WEB_BASE}${post.permalink}`,
             source: "Reddit",
             publishedAt: post.created_utc
               ? new Date(post.created_utc * 1000).toISOString()
@@ -115,7 +116,7 @@ export class RedditProvider implements NewsProvider {
 
     const basic = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString("base64");
     const text = await postForm(
-      "https://www.reddit.com/api/v1/access_token",
+      REDDIT_TOKEN_URL,
       { grant_type: "client_credentials" },
       {
         timeoutMs: 20000,

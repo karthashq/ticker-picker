@@ -1,6 +1,7 @@
 import { CompanyProfile, GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { getJson, withQuery } from "./http";
 import { articleRelevance, companiesForTopic } from "./newsProviderUtils";
+import { BENZINGA_API } from "../config/urls";
 
 type BenzingaNewsItem = {
   id?: number | string;
@@ -39,7 +40,7 @@ export class BenzingaNewsProvider implements NewsProvider {
     }
 
     try {
-      const url = withQuery("https://api.benzinga.com/api/v2/news", {
+      const url = withQuery(BENZINGA_API, {
         token: this.apiKey,
         tickers,
         pageSize: maxArticles,

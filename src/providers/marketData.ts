@@ -5,6 +5,7 @@ import {
   PricePoint
 } from "../types";
 import { getJson, withQuery } from "./http";
+import { FMP_API_BASE, YAHOO_CHART_API_BASE, YAHOO_QUOTE_API } from "../config/urls";
 
 interface YahooChartResponse {
   chart?: {
@@ -53,7 +54,7 @@ interface FmpProfileResponse {
 export class YahooMarketDataProvider implements MarketDataProvider {
   async fetchPriceHistory(ticker: string, range: string): Promise<PricePoint[]> {
     const url = withQuery(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}`,
+      `${YAHOO_CHART_API_BASE}/${encodeURIComponent(ticker)}`,
       {
         range,
         interval: "1mo",
@@ -84,7 +85,7 @@ export class YahooMarketDataProvider implements MarketDataProvider {
 // so the orchestrator treats this provider as best-effort.
 export class YahooFundamentalsProvider implements FundamentalsProvider {
   async fetchFundamentals(ticker: string): Promise<FundamentalsSnapshot | undefined> {
-    const url = withQuery("https://query1.finance.yahoo.com/v7/finance/quote", {
+    const url = withQuery(YAHOO_QUOTE_API, {
       symbols: ticker
     });
     const response = await getJson<YahooQuoteResponse>(url, { timeoutMs: 15000 });
@@ -117,9 +118,9 @@ export class FinancialModelingPrepFundamentalsProvider implements FundamentalsPr
     // These three endpoints are independent, so fetch them together to keep each
     // company's enrichment step reasonably quick.
     const [ratios, metrics, profile] = await Promise.all([
-      this.fetchFirst<FmpRatiosResponse>(`https://financialmodelingprep.com/api/v3/ratios-ttm/${ticker}`),
-      this.fetchFirst<FmpMetricsResponse>(`https://financialmodelingprep.com/api/v3/key-metrics-ttm/${ticker}`),
-      this.fetchFirst<FmpProfileResponse>(`https://financialmodelingprep.com/api/v3/profile/${ticker}`)
+      this.fetchFirst<FmpRatiosResponse>(`${FMP_API_BASE}/ratios-ttm/${ticker}`),
+      this.fetchFirst<FmpMetricsResponse>(`${FMP_API_BASE}/key-metrics-ttm/${ticker}`),
+      this.fetchFirst<FmpProfileResponse>(`${FMP_API_BASE}/profile/${ticker}`)
     ]);
 
     if (!ratios && !metrics && !profile) {
