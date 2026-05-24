@@ -1,5 +1,6 @@
 import { GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { dedupeNewsArticles } from "./newsProviderUtils";
+import { log } from "../utils/logger";
 
 export class CompositeNewsProvider implements NewsProvider {
   readonly warnings: string[] = [];
@@ -19,18 +20,33 @@ export class CompositeNewsProvider implements NewsProvider {
       }
 
       if (result.status === "fulfilled") {
+        const providerName = provider.constructor?.name ?? `provider-${index}`;
+        log.debug("Provider fetched articles", {
+          provider: providerName,
+          topic: topic.id,
+          count: result.value.length
+        });
         articles.push(...result.value);
       } else {
         const providerName = provider.constructor?.name ?? `provider-${index}`;
         const message =
           result.reason instanceof Error ? result.reason.message : String(result.reason);
+        log.warn("News provider threw unexpectedly", { provider: providerName, topic: topic.id, error: message });
         this.warnings.push(`${providerName} failed for ${topic.name}: ${message}`);
       }
     });
 
-    return dedupeNewsArticles(articles)
+    const deduped = dedupeNewsArticles(articles)
       .sort((a, b) => (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0))
       .slice(0, maxArticles * Math.max(this.providers.length, 1));
+
+    log.debug("Composite news aggregated", {
+      topic: topic.id,
+      raw: articles.length,
+      deduped: deduped.length
+    });
+
+    return deduped;
   }
 }
 

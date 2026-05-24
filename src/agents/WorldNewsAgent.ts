@@ -1,4 +1,5 @@
 import { AppConfig, GrowthTopic, NewsArticle, NewsProvider } from "../types";
+import { log } from "../utils/logger";
 
 // WorldNewsAgent is the first agent in the pipeline. It asks the configured
 // news provider for articles for every growth topic.
@@ -9,13 +10,20 @@ export class WorldNewsAgent {
   ) {}
 
   async run(): Promise<Map<string, NewsArticle[]>> {
-    // A Map keeps topic ids attached to article lists without duplicating topic
-    // metadata in every downstream step.
     const result = new Map<string, NewsArticle[]>();
 
     for (const topic of this.config.topics) {
+      log.debug("Fetching news for topic", { topic: topic.id });
+      const elapsed = log.timer();
       const articles = await this.fetchTopic(topic);
-      result.set(topic.id, dedupeArticles(articles));
+      const deduped = dedupeArticles(articles);
+      log.debug("Topic news fetched", {
+        topic: topic.id,
+        raw: articles.length,
+        deduped: deduped.length,
+        elapsedMs: elapsed()
+      });
+      result.set(topic.id, deduped);
     }
 
     return result;

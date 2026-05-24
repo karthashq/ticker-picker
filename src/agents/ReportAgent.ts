@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { AppConfig, CompanyAssessment, GrowthArea, ResearchRunResult } from "../types";
 import { round } from "../utils/math";
-import { loggedComplete } from "../utils/logger";
+import { log, loggedComplete } from "../utils/logger";
 import { AIProvider, NullAIProvider } from "../ai";
 
 // ReportAgent is responsible for artifacts only: a human-readable Markdown
@@ -29,9 +29,16 @@ export class ReportAgent {
     const reportPath = path.join(this.config.reportDir, `ticker-picker-${stamp}.md`);
     const jsonPath = path.join(this.config.reportDir, "last-run.json");
 
+    if (this.aiProvider.modelId !== "none") {
+      log.debug("Generating AI executive summary", { model: this.aiProvider.modelId });
+    }
+
     const aiExecSummary =
       this.aiProvider.modelId !== "none"
-        ? await generateAIExecSummary(this.aiProvider, growthAreas, assessments).catch(() => "")
+        ? await generateAIExecSummary(this.aiProvider, growthAreas, assessments).catch(err => {
+            log.warn("AI executive summary failed", { error: err instanceof Error ? err.message : String(err) });
+            return "";
+          })
         : "";
 
     const markdown = renderMarkdown(
@@ -43,12 +50,18 @@ export class ReportAgent {
       this.aiProvider.modelId
     );
 
+    log.info("Writing report files", { reportPath, jsonPath });
     await fs.writeFile(reportPath, markdown, "utf8");
     await fs.writeFile(
       jsonPath,
       JSON.stringify({ generatedAt, growthAreas, assessments, warnings }, null, 2),
       "utf8"
     );
+    log.debug("Report files written", {
+      reportPath,
+      jsonPath,
+      markdownBytes: Buffer.byteLength(markdown)
+    });
 
     return { reportPath, jsonPath };
   }

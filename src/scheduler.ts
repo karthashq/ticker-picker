@@ -1,4 +1,5 @@
 import { ResearchOrchestrator } from "./orchestrator";
+import { log } from "./utils/logger";
 
 // The scheduler runs immediately, then repeats at the configured interval. This
 // makes local testing easy and avoids waiting a full interval for the first run.
@@ -9,19 +10,13 @@ export async function runScheduler(
   const intervalMs = intervalHours * 60 * 60 * 1000;
 
   const runOnce = async () => {
-    const startedAt = new Date().toISOString();
-    console.log(`[${startedAt}] Starting ticker research run.`);
+    log.info("Scheduled run starting", { intervalHours });
     try {
-      // Each scheduled run is isolated. Failures are logged, but the scheduler
-      // remains alive for the next interval.
       const result = await orchestrator.run();
-      console.log(
-        `[${new Date().toISOString()}] Completed run. Report: ${result.reportPath}`
-      );
+      log.info("Scheduled run complete", { reportPath: result.reportPath });
     } catch (error) {
       const message = error instanceof Error ? error.stack ?? error.message : String(error);
-      console.error(`[${new Date().toISOString()}] Research run failed.`);
-      console.error(message);
+      log.error("Scheduled run failed", { error: message });
     }
   };
 

@@ -1,5 +1,6 @@
 import { CandidateCompany, MarketDataProvider, MarketSnapshot } from "../types";
 import { buildMarketSnapshot } from "../market/metrics";
+import { log } from "../utils/logger";
 
 // MarketPerformanceAgent enriches candidate stocks with price-history metrics.
 // It catches provider failures per ticker so one bad symbol does not stop a run.
@@ -14,16 +15,25 @@ export class MarketPerformanceAgent {
 
     for (const candidate of candidates) {
       const ticker = candidate.profile.ticker;
+      log.debug("Fetching market data", { ticker, range: this.priceHistoryRange });
+      const elapsed = log.timer();
       try {
-        // The provider returns raw monthly prices; buildMarketSnapshot converts
-        // those prices into returns, volatility, drawdown, and scores.
         const prices = await this.marketDataProvider.fetchPriceHistory(
           ticker,
           this.priceHistoryRange
         );
-        snapshots.set(ticker, buildMarketSnapshot(ticker, prices));
+        const snapshot = buildMarketSnapshot(ticker, prices);
+        log.debug("Market data fetched", {
+          ticker,
+          pricePoints: prices.length,
+          momentumScore: snapshot.momentumScore,
+          stabilityScore: snapshot.stabilityScore,
+          elapsedMs: elapsed()
+        });
+        snapshots.set(ticker, snapshot);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        log.warn("Market data fetch failed", { ticker, error: message, elapsedMs: elapsed() });
         snapshots.set(ticker, {
           ticker,
           asOf: new Date().toISOString(),

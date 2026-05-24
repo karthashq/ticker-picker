@@ -7,6 +7,7 @@ import { RiskRewardAgent } from "./agents/RiskRewardAgent";
 import { WorldNewsAgent } from "./agents/WorldNewsAgent";
 import { defaultConfig } from "./config/defaultConfig";
 import { buildAIProvider, AIProvider } from "./ai";
+import { log } from "./utils/logger";
 import { AIFundamentalsProvider } from "./providers/aiFundamentals";
 import { AINewsProvider } from "./providers/aiNews";
 import {
@@ -84,40 +85,81 @@ export class ResearchOrchestrator {
   async run(): Promise<ResearchRunResult> {
     const generatedAt = new Date().toISOString();
     const warnings: string[] = [];
+    const elapsed = log.timer();
+
+    log.info("Pipeline starting", {
+      topics: this.config.topics.length,
+      minNewsScore: this.config.run.minNewsScore,
+      maxGrowthAreas: this.config.run.maxGrowthAreas,
+      maxCompaniesPerArea: this.config.run.maxCompaniesPerArea
+    });
+
     // Step 1: collect recent news for each configured growth topic.
+    log.info("Step 1/5: collecting news");
     const newsByTopic = await this.worldNewsAgent.run();
-    warnings.push(...collectProviderWarnings(this.newsProvider));
+    const totalArticles = [...newsByTopic.values()].reduce((n, a) => n + a.length, 0);
+    log.info("News collection complete", { totalArticles });
+
+    const providerWarnings = collectProviderWarnings(this.newsProvider);
+    for (const w of providerWarnings) {
+      log.warn(w);
+    }
+    warnings.push(...providerWarnings);
+
     // Step 2: convert article signals into ranked growth areas.
+    log.info("Step 2/5: scoring growth areas");
     const growthAreas = this.growthAreaAgent.run(newsByTopic);
+    log.info("Growth areas detected", { count: growthAreas.length, areas: growthAreas.map(a => a.name) });
 
     if (growthAreas.length === 0) {
+      log.warn("No growth areas passed the configured news-score threshold", {
+        minNewsScore: this.config.run.minNewsScore
+      });
       warnings.push("No growth areas passed the configured news-score threshold.");
     }
 
     // Step 3: map the strongest themes to companies in the curated universe.
+    log.info("Step 3/5: discovering company candidates");
     const candidates = this.companyDiscoveryAgent.run(growthAreas);
+    log.info("Company candidates identified", {
+      count: candidates.length,
+      tickers: candidates.map(c => c.profile.ticker)
+    });
+
     if (candidates.length === 0) {
+      log.warn("No company candidates matched the detected growth areas");
       warnings.push("No company candidates matched the detected growth areas.");
     }
 
     // Step 4: market history and fundamentals are independent, so run them
     // together to reduce total runtime.
+    log.info("Step 4/5: fetching market data and fundamentals");
     const [marketSnapshots, fundamentalsSnapshots] = await Promise.all([
       this.marketPerformanceAgent.run(candidates),
       this.fundamentalsAgent.run(candidates)
     ]);
+    log.info("Market and fundamentals enrichment complete", {
+      marketSnapshots: marketSnapshots.size,
+      fundamentalsSnapshots: fundamentalsSnapshots.size
+    });
+
     // Step 5: score each company and write the final artifacts.
+    log.info("Step 5/5: scoring risk/reward and writing report");
     const assessments = await this.riskRewardAgent.run(
       candidates,
       marketSnapshots,
       fundamentalsSnapshots
     );
+    log.info("Risk/reward scoring complete", { count: assessments.length });
+
     const paths = await this.reportAgent.writeReport(
       generatedAt,
       growthAreas,
       assessments,
       warnings
     );
+
+    log.info("Pipeline complete", { elapsedMs: elapsed(), reportPath: paths.reportPath });
 
     return {
       generatedAt,

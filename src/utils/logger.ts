@@ -1,6 +1,48 @@
 import fs from "fs";
 import path from "path";
 
+// ── Console logger ────────────────────────────────────────────────────────────
+// Supports four levels. Set LOG_LEVEL=debug to see debug output; default is info.
+
+type LogLevel = "debug" | "info" | "warn" | "error";
+
+const LEVEL_RANK: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
+
+const enabledLevel: LogLevel =
+  (process.env.LOG_LEVEL?.toLowerCase() as LogLevel | undefined) ?? "info";
+
+function emit(level: LogLevel, message: string, data?: Record<string, unknown>): void {
+  if (LEVEL_RANK[level] < LEVEL_RANK[enabledLevel]) {
+    return;
+  }
+
+  const ts = new Date().toISOString().slice(11, 19);
+  const tag = level.toUpperCase().padEnd(5);
+  const suffix = data && Object.keys(data).length > 0 ? `  ${JSON.stringify(data)}` : "";
+  const line = `[${ts}] ${tag}  ${message}${suffix}`;
+
+  if (level === "error" || level === "warn") {
+    console.error(line);
+  } else {
+    console.log(line);
+  }
+}
+
+export const log = {
+  debug: (message: string, data?: Record<string, unknown>) => emit("debug", message, data),
+  info:  (message: string, data?: Record<string, unknown>) => emit("info",  message, data),
+  warn:  (message: string, data?: Record<string, unknown>) => emit("warn",  message, data),
+  error: (message: string, data?: Record<string, unknown>) => emit("error", message, data),
+
+  // Returns a function that returns elapsed milliseconds since the call.
+  timer(): () => number {
+    const start = Date.now();
+    return () => Date.now() - start;
+  }
+};
+
+// ── AI call file logger ───────────────────────────────────────────────────────
+
 export interface AICallLogEntry {
   timestamp: string;
   caller: "ai-news" | "ai-fundamentals" | "risk-reward-summary" | "exec-summary";

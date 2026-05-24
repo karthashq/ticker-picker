@@ -1,5 +1,6 @@
 import { AppConfig, CandidateCompany, GrowthArea } from "../types";
 import { clamp, round } from "../utils/math";
+import { log } from "../utils/logger";
 
 // CompanyDiscoveryAgent maps active growth areas to the curated company
 // universe. This keeps stock selection transparent and easy to edit.
@@ -12,8 +13,6 @@ export class CompanyDiscoveryAgent {
     for (const growthArea of growthAreas) {
       const matches = this.config.companyUniverse
         .map(profile => {
-          // Keyword overlap is the main relevance signal. The check is
-          // bidirectional so "data center" and "data center power" can match.
           const matchedKeywords = profile.keywords.filter(keyword =>
             growthArea.keywords.some(
               topicKeyword =>
@@ -21,8 +20,6 @@ export class CompanyDiscoveryAgent {
                 keyword.toLowerCase().includes(topicKeyword.toLowerCase())
             )
           );
-          // Industry and sector overlap are weaker supporting signals because
-          // they are broad and can create false positives on their own.
           const industryOverlap = words(profile.industry).filter(word =>
             words(growthArea.industry).includes(word)
           ).length;
@@ -33,8 +30,6 @@ export class CompanyDiscoveryAgent {
             : 0;
           const rawScore =
             matchedKeywords.length * 18 + industryOverlap * 8 + sectorOverlap * 10;
-          // A strong news theme can lift a company, but it cannot fully replace
-          // actual keyword/industry fit.
           const trendFitScore = round(clamp(rawScore + growthArea.newsScore * 0.35, 0, 100), 1);
 
           return {
@@ -48,10 +43,23 @@ export class CompanyDiscoveryAgent {
         .sort((a, b) => b.trendFitScore - a.trendFitScore)
         .slice(0, this.config.run.maxCompaniesPerArea);
 
+      log.debug("Company matching for growth area", {
+        area: growthArea.id,
+        newsScore: growthArea.newsScore,
+        matched: matches.length,
+        tickers: matches.map(m => `${m.profile.ticker}(${m.trendFitScore})`)
+      });
+
       candidates.push(...matches);
     }
 
-    return dedupeCandidates(candidates);
+    const deduped = dedupeCandidates(candidates);
+    log.debug("Candidates after dedup", {
+      beforeDedup: candidates.length,
+      afterDedup: deduped.length
+    });
+
+    return deduped;
   }
 }
 

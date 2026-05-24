@@ -8,7 +8,7 @@ import {
   RiskRewardAssessment
 } from "../types";
 import { clamp, round } from "../utils/math";
-import { loggedComplete } from "../utils/logger";
+import { log, loggedComplete } from "../utils/logger";
 import { AIProvider, NullAIProvider } from "../ai";
 
 // RiskRewardAgent is the final analytical agent. It combines theme fit,
@@ -27,11 +27,18 @@ export class RiskRewardAgent {
     const assessments: CompanyAssessment[] = candidates
       .map(candidate => {
         const ticker = candidate.profile.ticker;
-        // Use a defensive missing-market snapshot if the provider failed so the
-        // final report can still explain the uncertainty.
         const market = marketSnapshots.get(ticker) ?? missingMarketSnapshot(ticker);
         const fundamentals = fundamentalsSnapshots.get(ticker);
         const assessment = assessCandidate(candidate, market, fundamentals);
+
+        log.debug("Company assessed", {
+          ticker,
+          reward: assessment.rewardScore,
+          risk: assessment.riskScore,
+          ratio: assessment.riskRewardRatio,
+          recommendation: assessment.recommendation,
+          hasFundamentals: Boolean(fundamentals)
+        });
 
         return {
           candidate,
@@ -45,10 +52,17 @@ export class RiskRewardAgent {
       .sort((a, b) => b.assessment.riskRewardRatio - a.assessment.riskRewardRatio);
 
     if (this.aiProvider.modelId !== "none") {
+      log.debug("Generating AI summaries", { count: assessments.length, model: this.aiProvider.modelId });
       await Promise.all(
         assessments.map(async a => {
-          const summary = await generateAISummary(this.aiProvider, a).catch(() => "");
+          const ticker = a.candidate.profile.ticker;
+          log.debug("Generating AI summary", { ticker });
+          const summary = await generateAISummary(this.aiProvider, a).catch(err => {
+            log.warn("AI summary failed", { ticker, error: err instanceof Error ? err.message : String(err) });
+            return "";
+          });
           if (summary) {
+            log.debug("AI summary generated", { ticker, chars: summary.length });
             a.aiSummary = summary;
           }
         })
