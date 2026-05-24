@@ -1,4 +1,5 @@
 import { AIProvider } from "../ai";
+import { loggedComplete } from "../utils/logger";
 import { GrowthTopic, NewsArticle, NewsProvider } from "../types";
 import { articleRelevance } from "./newsProviderUtils";
 
@@ -12,7 +13,10 @@ export class AINewsProvider implements NewsProvider {
 
   async fetchArticles(topic: GrowthTopic, maxArticles: number): Promise<NewsArticle[]> {
     const prompt = buildPrompt(topic, maxArticles);
-    const raw = await this.ai.complete(prompt, 800).catch(() => "");
+    const raw = await loggedComplete(
+      (p, t) => this.ai.complete(p, t),
+      { caller: "ai-news", provider: this.ai.modelId, context: topic.name, prompt, maxTokens: 800 }
+    ).catch(() => "");
     return parseArticles(raw, topic);
   }
 }

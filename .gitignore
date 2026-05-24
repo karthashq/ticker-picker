@@ -1,6 +1,7 @@
 node_modules/
 dist/
 reports/
+logs/
 .env
 .DS_Store
 npm-debug.log*

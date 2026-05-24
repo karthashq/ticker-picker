@@ -1,4 +1,5 @@
 import { AIProvider } from "../ai";
+import { loggedComplete } from "../utils/logger";
 import { FundamentalsProvider, FundamentalsSnapshot } from "../types";
 
 // AIFundamentalsProvider generates approximate financial metrics from the AI
@@ -13,7 +14,10 @@ export class AIFundamentalsProvider implements FundamentalsProvider {
 
   async fetchFundamentals(ticker: string): Promise<FundamentalsSnapshot | undefined> {
     const prompt = buildPrompt(ticker);
-    const raw = await this.ai.complete(prompt, 400).catch(() => "");
+    const raw = await loggedComplete(
+      (p, t) => this.ai.complete(p, t),
+      { caller: "ai-fundamentals", provider: this.ai.modelId, context: ticker, prompt, maxTokens: 400 }
+    ).catch(() => "");
     return parseSnapshot(raw, ticker, this.ai.modelId);
   }
 }

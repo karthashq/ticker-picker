@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { AppConfig, CompanyAssessment, GrowthArea, ResearchRunResult } from "../types";
 import { round } from "../utils/math";
+import { loggedComplete } from "../utils/logger";
 import { AIProvider, NullAIProvider } from "../ai";
 
 // ReportAgent is responsible for artifacts only: a human-readable Markdown
@@ -270,5 +271,8 @@ async function generateAIExecSummary(
     "Write 3 sentences: (1) which themes are most active and what is driving them, (2) which candidates stand out and what they share, (3) the primary cross-portfolio risk. Be analytical and specific. Do not give financial advice."
   ].join("\n");
 
-  return ai.complete(prompt, 300);
+  return loggedComplete(
+    (p, t) => ai.complete(p, t),
+    { caller: "exec-summary", provider: ai.modelId, context: "exec-summary", prompt, maxTokens: 300 }
+  );
 }

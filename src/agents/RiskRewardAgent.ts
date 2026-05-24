@@ -8,6 +8,7 @@ import {
   RiskRewardAssessment
 } from "../types";
 import { clamp, round } from "../utils/math";
+import { loggedComplete } from "../utils/logger";
 import { AIProvider, NullAIProvider } from "../ai";
 
 // RiskRewardAgent is the final analytical agent. It combines theme fit,
@@ -379,5 +380,8 @@ async function generateAISummary(
     "Write exactly 2 sentences: first explain why this company connects to the theme and what makes it a notable candidate; second identify the most important risk or uncertainty. Be specific and analytical. Do not give financial advice."
   ].join("\n");
 
-  return ai.complete(prompt, 200);
+  return loggedComplete(
+    (p, t) => ai.complete(p, t),
+    { caller: "risk-reward-summary", provider: ai.modelId, context: candidate.profile.ticker, prompt, maxTokens: 200 }
+  );
 }

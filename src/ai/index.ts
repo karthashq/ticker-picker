@@ -45,7 +45,7 @@ export function buildAIProvider(): AIProvider {
       throw new Error("AI_PROVIDER=gemini requires GEMINI_API_KEY to be set.");
     }
 
-    return new GeminiProvider(key, model ?? "gemini-2.0-flash");
+    return new GeminiProvider(key, model ?? "gemini-flash-latest");
   }
 
   if (name === "ollama") {
