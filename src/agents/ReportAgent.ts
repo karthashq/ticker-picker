@@ -2,11 +2,17 @@ import fs from "fs/promises";
 import path from "path";
 import { AppConfig, CompanyAssessment, GrowthArea, ResearchRunResult } from "../types";
 import { round } from "../utils/math";
+import { AIProvider, NullAIProvider } from "../ai";
 
 // ReportAgent is responsible for artifacts only: a human-readable Markdown
 // report and a machine-readable JSON snapshot of the same run.
+// When an AIProvider is configured, it prepends an AI-generated narrative
+// paragraph to the executive summary before the ranking table.
 export class ReportAgent {
-  constructor(private readonly config: AppConfig) {}
+  constructor(
+    private readonly config: AppConfig,
+    private readonly aiProvider: AIProvider = new NullAIProvider()
+  ) {}
 
   async writeReport(
     generatedAt: string,
@@ -21,7 +27,20 @@ export class ReportAgent {
     const stamp = generatedAt.replace(/[:.]/g, "-");
     const reportPath = path.join(this.config.reportDir, `ticker-picker-${stamp}.md`);
     const jsonPath = path.join(this.config.reportDir, "last-run.json");
-    const markdown = renderMarkdown(generatedAt, growthAreas, assessments, warnings);
+
+    const aiExecSummary =
+      this.aiProvider.modelId !== "none"
+        ? await generateAIExecSummary(this.aiProvider, growthAreas, assessments).catch(() => "")
+        : "";
+
+    const markdown = renderMarkdown(
+      generatedAt,
+      growthAreas,
+      assessments,
+      warnings,
+      aiExecSummary,
+      this.aiProvider.modelId
+    );
 
     await fs.writeFile(reportPath, markdown, "utf8");
     await fs.writeFile(
@@ -40,7 +59,9 @@ function renderMarkdown(
   generatedAt: string,
   growthAreas: GrowthArea[],
   assessments: CompanyAssessment[],
-  warnings: string[]
+  warnings: string[],
+  aiExecSummary: string,
+  aiModelId: string
 ): string {
   const topAssessments = assessments.slice(0, 15);
 
@@ -53,6 +74,7 @@ function renderMarkdown(
     "",
     "## Executive Summary",
     "",
+    ...(aiExecSummary ? [aiExecSummary, ""] : []),
     renderSummary(topAssessments),
     "",
     "## Growth Areas Detected",
@@ -71,6 +93,9 @@ function renderMarkdown(
     "- Market performance: monthly adjusted price history, one-year momentum, annualized returns, volatility, and max drawdown.",
     "- Fundamentals: available valuation, margin, cash-flow, leverage, and market-cap data.",
     "- Risk/reward: deterministic scoring that weighs growth-theme fit and quality against volatility, drawdown, valuation, leverage, and missing-data risk.",
+    ...(aiModelId !== "none"
+      ? [`- AI enrichment: narrative synthesis via ${aiModelId}. All numeric scores are deterministic; AI text is additive.`]
+      : []),
     "",
     "## Data Quality Notes",
     "",
@@ -146,9 +171,9 @@ function renderAssessment(assessment: CompanyAssessment): string {
     "",
     `Risk/reward ratio: ${risk.riskRewardRatio}. Reward score: ${risk.rewardScore}/100. Risk score: ${risk.riskScore}/100 (${risk.riskLevel}).`,
     "",
-    "Thesis:",
-    ...assessment.thesis.map(item => `- ${item}`),
-    "",
+    ...(assessment.aiSummary
+      ? ["AI analysis:", assessment.aiSummary, ""]
+      : ["Thesis:", ...assessment.thesis.map(item => `- ${item}`), ""]),
     "Reward drivers:",
     ...risk.rewardDrivers.map(item => `- ${item}`),
     "",
@@ -211,4 +236,39 @@ function escapePipe(value: string): string {
 
 function escapeMarkdown(value: string): string {
   return value.replace(/\[/g, "\\[").replace(/\]/g, "\\]");
+}
+
+// generateAIExecSummary asks the LLM for a concise narrative opening paragraph
+// that synthesizes the top themes and candidates into prose. This is a single
+// API call regardless of how many candidates are in the report.
+async function generateAIExecSummary(
+  ai: AIProvider,
+  growthAreas: GrowthArea[],
+  assessments: CompanyAssessment[]
+): Promise<string> {
+  const areaLines = growthAreas
+    .map(a => `- ${a.name} (news score: ${a.newsScore}/100, ${a.articleCount} articles)`)
+    .join("\n");
+
+  const top5 = assessments.slice(0, 5);
+  const candidateLines = top5
+    .map(
+      (a, i) =>
+        `${i + 1}. ${a.candidate.profile.ticker} (${a.candidate.profile.name}) — ${a.candidate.growthArea.name} — ${a.assessment.recommendation} — R/R ${a.assessment.riskRewardRatio}`
+    )
+    .join("\n");
+
+  const prompt = [
+    "You are writing the opening paragraph for a growth stock screening report.",
+    "",
+    "Detected growth themes:",
+    areaLines,
+    "",
+    "Top candidates by risk/reward:",
+    candidateLines,
+    "",
+    "Write 3 sentences: (1) which themes are most active and what is driving them, (2) which candidates stand out and what they share, (3) the primary cross-portfolio risk. Be analytical and specific. Do not give financial advice."
+  ].join("\n");
+
+  return ai.complete(prompt, 300);
 }

@@ -6,6 +6,9 @@ import { ReportAgent } from "./agents/ReportAgent";
 import { RiskRewardAgent } from "./agents/RiskRewardAgent";
 import { WorldNewsAgent } from "./agents/WorldNewsAgent";
 import { defaultConfig } from "./config/defaultConfig";
+import { buildAIProvider, AIProvider } from "./ai";
+import { AIFundamentalsProvider } from "./providers/aiFundamentals";
+import { AINewsProvider } from "./providers/aiNews";
 import {
   AppConfig,
   FundamentalsProvider,
@@ -57,12 +60,13 @@ export class ResearchOrchestrator {
     dependencies: OrchestratorDependencies = {}
   ) {
     this.config = config;
+    const aiProvider = buildAIProvider();
     const newsProvider =
-      dependencies.newsProvider ?? buildDefaultNewsProvider(config);
+      dependencies.newsProvider ?? buildDefaultNewsProvider(config, aiProvider);
     const marketDataProvider =
       dependencies.marketDataProvider ?? new YahooMarketDataProvider();
     const fundamentalsProvider =
-      dependencies.fundamentalsProvider ?? buildDefaultFundamentalsProvider();
+      dependencies.fundamentalsProvider ?? buildDefaultFundamentalsProvider(aiProvider);
 
     this.newsProvider = newsProvider;
     this.worldNewsAgent = new WorldNewsAgent(config, newsProvider);
@@ -73,8 +77,8 @@ export class ResearchOrchestrator {
       config.run.priceHistoryRange
     );
     this.fundamentalsAgent = new FundamentalsAgent(fundamentalsProvider);
-    this.riskRewardAgent = new RiskRewardAgent();
-    this.reportAgent = new ReportAgent(config);
+    this.riskRewardAgent = new RiskRewardAgent(aiProvider);
+    this.reportAgent = new ReportAgent(config, aiProvider);
   }
 
   async run(): Promise<ResearchRunResult> {
@@ -103,7 +107,7 @@ export class ResearchOrchestrator {
       this.fundamentalsAgent.run(candidates)
     ]);
     // Step 5: score each company and write the final artifacts.
-    const assessments = this.riskRewardAgent.run(
+    const assessments = await this.riskRewardAgent.run(
       candidates,
       marketSnapshots,
       fundamentalsSnapshots
@@ -136,8 +140,8 @@ function collectProviderWarnings(provider: NewsProvider): string[] {
     : [];
 }
 
-function buildDefaultNewsProvider(config: AppConfig): NewsProvider {
-  return new CompositeNewsProvider([
+function buildDefaultNewsProvider(config: AppConfig, aiProvider: AIProvider): NewsProvider {
+  const providers: NewsProvider[] = [
     new GdeltNewsProvider(),
     new SecEdgarProvider(config.companyUniverse),
     new FredMacroProvider(),
@@ -153,17 +157,29 @@ function buildDefaultNewsProvider(config: AppConfig): NewsProvider {
     new ConfiguredRssNewsProvider("PitchBook", "PITCHBOOK_RSS_URL"),
     new ConfiguredRssNewsProvider("Reuters", "REUTERS_RSS_URL"),
     new ConfiguredRssNewsProvider("CrunchSpace", "CRUNCHSPACE_RSS_URL")
-  ]);
+  ];
+
+  if (aiProvider.modelId !== "none") {
+    providers.push(new AINewsProvider(aiProvider));
+  }
+
+  return new CompositeNewsProvider(providers);
 }
 
 // Default fundamentals prefer richer FMP data when the user provides an API key,
-// then fall back to Yahoo quote data when available.
-function buildDefaultFundamentalsProvider(): FundamentalsProvider {
+// then fall back to Yahoo quote data, then to AI estimates as a last resort.
+function buildDefaultFundamentalsProvider(aiProvider: AIProvider): FundamentalsProvider {
   const providers: FundamentalsProvider[] = [];
+
   if (process.env.FMP_API_KEY) {
     providers.push(new FinancialModelingPrepFundamentalsProvider(process.env.FMP_API_KEY));
   }
 
   providers.push(new YahooFundamentalsProvider());
+
+  if (aiProvider.modelId !== "none") {
+    providers.push(new AIFundamentalsProvider(aiProvider));
+  }
+
   return new CompositeFundamentalsProvider(providers);
 }

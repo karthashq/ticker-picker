@@ -143,12 +143,15 @@ export interface RiskRewardAssessment {
 }
 
 // CompanyAssessment joins every view of a company into the final report object.
+// aiSummary is an optional LLM-generated narrative set when an AIProvider is
+// configured; absent otherwise so the deterministic thesis always remains.
 export interface CompanyAssessment {
   candidate: CandidateCompany;
   market: MarketSnapshot;
   fundamentals?: FundamentalsSnapshot;
   assessment: RiskRewardAssessment;
   thesis: string[];
+  aiSummary?: string;
   evidence: NewsArticle[];
 }
 

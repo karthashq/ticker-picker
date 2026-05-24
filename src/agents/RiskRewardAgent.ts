@@ -8,16 +8,22 @@ import {
   RiskRewardAssessment
 } from "../types";
 import { clamp, round } from "../utils/math";
+import { AIProvider, NullAIProvider } from "../ai";
 
 // RiskRewardAgent is the final analytical agent. It combines theme fit,
 // historical performance, fundamentals, and data quality into a recommendation.
+// When an AIProvider is configured it also generates a concise per-company
+// narrative (aiSummary) that synthesizes the numeric signals into prose. The
+// deterministic scores are never replaced — AI enrichment is purely additive.
 export class RiskRewardAgent {
-  run(
+  constructor(private readonly aiProvider: AIProvider = new NullAIProvider()) {}
+
+  async run(
     candidates: CandidateCompany[],
     marketSnapshots: Map<string, MarketSnapshot>,
     fundamentalsSnapshots: Map<string, FundamentalsSnapshot>
-  ): CompanyAssessment[] {
-    return candidates
+  ): Promise<CompanyAssessment[]> {
+    const assessments: CompanyAssessment[] = candidates
       .map(candidate => {
         const ticker = candidate.profile.ticker;
         // Use a defensive missing-market snapshot if the provider failed so the
@@ -36,6 +42,19 @@ export class RiskRewardAgent {
         };
       })
       .sort((a, b) => b.assessment.riskRewardRatio - a.assessment.riskRewardRatio);
+
+    if (this.aiProvider.modelId !== "none") {
+      await Promise.all(
+        assessments.map(async a => {
+          const summary = await generateAISummary(this.aiProvider, a).catch(() => "");
+          if (summary) {
+            a.aiSummary = summary;
+          }
+        })
+      );
+    }
+
+    return assessments;
   }
 }
 
@@ -325,4 +344,40 @@ function buildThesis(
   }
 
   return thesis;
+}
+
+// generateAISummary asks the configured LLM to synthesize the numeric signals
+// into a 2-sentence narrative. Errors are swallowed by the caller so a failed
+// AI call never blocks the report.
+async function generateAISummary(
+  ai: AIProvider,
+  assessment: CompanyAssessment
+): Promise<string> {
+  const { candidate, market, fundamentals } = assessment;
+  const { profile, growthArea, trendFitScore, matchedKeywords } = candidate;
+  const { rewardScore, riskScore, riskRewardRatio, recommendation } = assessment.assessment;
+
+  const fundLine = fundamentals
+    ? `Forward P/E: ${fundamentals.forwardPe ?? "N/A"}. Operating margin: ${
+        fundamentals.operatingMarginTtm !== undefined
+          ? `${round(fundamentals.operatingMarginTtm * 100, 1)}%`
+          : "N/A"
+      }. Market cap: ${fundamentals.marketCap ? `$${round(fundamentals.marketCap / 1e9, 1)}B` : "N/A"}.`
+    : "Fundamentals unavailable.";
+
+  const prompt = [
+    `You are analyzing ${profile.name} (${profile.ticker}), a ${profile.sector} company.`,
+    "",
+    `Growth theme: "${growthArea.name}" — ${growthArea.description}`,
+    `Theme fit: ${trendFitScore}/100. Matched keywords: ${matchedKeywords.join(", ")}.`,
+    `Reward: ${rewardScore}/100. Risk: ${riskScore}/100. R/R ratio: ${riskRewardRatio}. Recommendation: ${recommendation}.`,
+    `1-year return: ${market.returns.oneYear !== undefined ? `${round(market.returns.oneYear * 100, 1)}%` : "unavailable"}.`,
+    `Volatility: ${market.volatilityAnnualized !== undefined ? `${round(market.volatilityAnnualized * 100, 1)}%` : "unavailable"}.`,
+    `Max drawdown: ${market.maxDrawdown !== undefined ? `${round(market.maxDrawdown * 100, 1)}%` : "unavailable"}.`,
+    fundLine,
+    "",
+    "Write exactly 2 sentences: first explain why this company connects to the theme and what makes it a notable candidate; second identify the most important risk or uncertainty. Be specific and analytical. Do not give financial advice."
+  ].join("\n");
+
+  return ai.complete(prompt, 200);
 }
