@@ -5,7 +5,7 @@ import { log } from "../../utils/logger";
 
 interface GeminiResponse {
   candidates: Array<{
-    content: { parts: Array<{ text: string }> };
+    content: { parts: Array<{ text?: string; thought?: boolean }> };
   }>;
 }
 
@@ -29,11 +29,22 @@ export class GeminiProvider implements AIProvider {
       );
 
       const response = await postJson<GeminiResponse>(url, {
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: maxTokens }
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          maxOutputTokens: maxTokens,
+          // Gemini 2.5/3.x models can spend most of the output budget on
+          // thinking tokens, causing the visible answer to truncate early.
+          // Disable thinking so maxOutputTokens is reserved for the response.
+          thinkingConfig: { thinkingBudget: 0 }
+        }
       });
 
-      const text = response.candidates[0]?.content?.parts[0]?.text?.trim() ?? "";
+      const parts = response.candidates[0]?.content?.parts ?? [];
+      const text = parts
+        .filter(part => !part.thought)
+        .map(part => part.text ?? "")
+        .join("")
+        .trim();
       log.debug("gemini response", { model: this.modelId, latencyMs: Date.now() - start, responseChars: text.length });
       return text;
     } catch (err) {

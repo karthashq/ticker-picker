@@ -17,7 +17,9 @@ export const CRUNCHBASE_HOME = "https://www.crunchbase.com/";
 // === Market data ===
 export const YAHOO_CHART_API_BASE = "https://query1.finance.yahoo.com/v8/finance/chart";
 export const YAHOO_QUOTE_API = "https://query1.finance.yahoo.com/v7/finance/quote";
-export const FMP_API_BASE = "https://financialmodelingprep.com/api/v3";
+// Financial Modeling Prep migrated legacy /api/v3 endpoints to /stable.
+// See: https://site.financialmodelingprep.com/developer/docs/quickstart
+export const FMP_API_BASE = "https://financialmodelingprep.com/stable";
 
 // === Macro data ===
 export const FRED_OBSERVATIONS_API = "https://api.stlouisfed.org/fred/series/observations";

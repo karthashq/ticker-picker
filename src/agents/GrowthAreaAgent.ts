@@ -3,6 +3,7 @@ import { clamp, round } from "../utils/math";
 import { log } from "../utils/logger";
 
 const RECENT_WINDOW_DAYS = 10;
+const EVIDENCE_ARTICLE_LIMIT = 20;
 
 // GrowthAreaAgent converts raw article lists into ranked industry/theme signals.
 // It does not pick stocks yet; it only decides which themes are active enough.
@@ -29,8 +30,8 @@ export class GrowthAreaAgent {
       const keywordDensity = calculateKeywordDensity(topic.keywords, relevantArticles);
       const evidence =
         relevantArticles.length > 0
-          ? relevantArticles.slice(0, 6)
-          : articles.slice(0, 6);
+          ? relevantArticles.slice(0, EVIDENCE_ARTICLE_LIMIT)
+          : articles.slice(0, EVIDENCE_ARTICLE_LIMIT);
       const newsScore = round(
         clamp(
           relevantArticles.length * 5 +

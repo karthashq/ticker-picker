@@ -188,6 +188,7 @@ function renderAssessment(assessment: CompanyAssessment): string {
     ...(assessment.aiSummary
       ? ["AI analysis:", assessment.aiSummary, ""]
       : ["Thesis:", ...assessment.thesis.map(item => `- ${item}`), ""]),
+    ...renderAssessmentEvidence(assessment),
     "Reward drivers:",
     ...risk.rewardDrivers.map(item => `- ${item}`),
     "",
@@ -217,6 +218,33 @@ function renderAssessment(assessment: CompanyAssessment): string {
     ...(risk.missingData.length > 0 ? risk.missingData.map(item => `- ${item}`) : ["- None flagged."]),
     ""
   ].join("\n");
+}
+
+function renderAssessmentEvidence(assessment: CompanyAssessment): string[] {
+  const evidence = assessment.evidence
+    .filter(article => article.title || article.url)
+    .slice(0, 4);
+
+  if (evidence.length === 0) {
+    return [
+      "Highlighted evidence:",
+      "- No source links were available for this candidate; selection came from theme/company keyword fit.",
+      ""
+    ];
+  }
+
+  return [
+    "Highlighted evidence:",
+    ...evidence.map(article => {
+      const date = article.publishedAt ? article.publishedAt.slice(0, 10) : "date unavailable";
+      const source = escapeMarkdown(article.source || "Unknown source");
+      const title = escapeMarkdown(article.title || article.url);
+      const linkedTitle = article.url ? `[${title}](${article.url})` : title;
+      const score = article.relevanceScore === undefined ? "" : ` - relevance ${round(article.relevanceScore, 1)}`;
+      return `- **${source}** (${date}${score}): ${linkedTitle}`;
+    }),
+    ""
+  ];
 }
 
 // Formatting helpers keep report values readable and consistent.

@@ -34,20 +34,21 @@ interface YahooQuoteResponse {
 }
 
 interface FmpRatiosResponse {
-  peRatioTTM?: number;
+  priceToEarningsRatioTTM?: number;
   priceToSalesRatioTTM?: number;
   grossProfitMarginTTM?: number;
   operatingProfitMarginTTM?: number;
-  debtEquityRatioTTM?: number;
+  operatingCashFlowSalesRatioTTM?: number;
+  freeCashFlowOperatingCashFlowRatioTTM?: number;
+  debtToEquityRatioTTM?: number;
 }
 
 interface FmpMetricsResponse {
-  revenuePerShareTTM?: number;
-  freeCashFlowPerShareTTM?: number;
+  marketCap?: number;
 }
 
 interface FmpProfileResponse {
-  mktCap?: number;
+  marketCap?: number;
 }
 
 // Yahoo's chart endpoint is used for historical monthly prices. It is free and
@@ -132,9 +133,9 @@ export class FinancialModelingPrepFundamentalsProvider implements FundamentalsPr
     // These three endpoints are independent, so fetch them together to keep each
     // company's enrichment step reasonably quick.
     const [ratios, metrics, profile] = await Promise.all([
-      this.fetchFirst<FmpRatiosResponse>(`${FMP_API_BASE}/ratios-ttm/${ticker}`),
-      this.fetchFirst<FmpMetricsResponse>(`${FMP_API_BASE}/key-metrics-ttm/${ticker}`),
-      this.fetchFirst<FmpProfileResponse>(`${FMP_API_BASE}/profile/${ticker}`)
+      this.fetchFirst<FmpRatiosResponse>("ratios-ttm", ticker),
+      this.fetchFirst<FmpMetricsResponse>("key-metrics-ttm", ticker),
+      this.fetchFirst<FmpProfileResponse>("profile", ticker)
     ]);
 
     if (!ratios && !metrics && !profile) {
@@ -143,30 +144,38 @@ export class FinancialModelingPrepFundamentalsProvider implements FundamentalsPr
     }
 
     log.debug("fmp fundamentals fetched", { ticker, latencyMs: Date.now() - start });
+
+    // Approximate trailing free-cash-flow margin using two ratios:
+    // (Operating cash flow / Sales) * (Free cash flow / Operating cash flow)
+    // = Free cash flow / Sales.
+    const freeCashFlowMarginTtm =
+      ratios?.operatingCashFlowSalesRatioTTM !== undefined &&
+      ratios?.freeCashFlowOperatingCashFlowRatioTTM !== undefined
+        ? ratios.operatingCashFlowSalesRatioTTM * ratios.freeCashFlowOperatingCashFlowRatioTTM
+        : undefined;
+
     return {
       ticker,
       asOf: new Date().toISOString(),
-      source: "Financial Modeling Prep",
-      marketCap: profile?.mktCap,
-      trailingPe: ratios?.peRatioTTM,
+      source: "Financial Modeling Prep (stable)",
+      marketCap: profile?.marketCap ?? metrics?.marketCap,
+      trailingPe: ratios?.priceToEarningsRatioTTM,
       priceToSales: ratios?.priceToSalesRatioTTM,
       grossMarginTtm: ratios?.grossProfitMarginTTM,
       operatingMarginTtm: ratios?.operatingProfitMarginTTM,
-      // FMP exposes free cash flow and revenue per share. Dividing them gives a
-      // rough trailing free-cash-flow margin when both values are available.
-      freeCashFlowMarginTtm:
-        metrics?.freeCashFlowPerShareTTM && metrics?.revenuePerShareTTM
-          ? metrics.freeCashFlowPerShareTTM / metrics.revenuePerShareTTM
-          : undefined,
-      debtToEquity: ratios?.debtEquityRatioTTM,
+      freeCashFlowMarginTtm,
+      debtToEquity: ratios?.debtToEquityRatioTTM,
       dataQualityWarnings: []
     };
   }
 
-  private async fetchFirst<T>(baseUrl: string): Promise<T | undefined> {
-    // FMP returns arrays for these endpoints; the first object is the current
-    // trailing-twelve-month snapshot.
-    const url = withQuery(baseUrl, { apikey: this.apiKey });
+  private async fetchFirst<T>(endpoint: string, ticker: string): Promise<T | undefined> {
+    // Stable endpoints use query params instead of /{ticker} path segments.
+    // Most endpoints return arrays with a single current snapshot.
+    const url = withQuery(`${FMP_API_BASE}/${endpoint}`, {
+      symbol: ticker,
+      apikey: this.apiKey
+    });
     const response = await getJson<T[]>(url, { timeoutMs: 20000 });
     return Array.isArray(response) ? response[0] : undefined;
   }

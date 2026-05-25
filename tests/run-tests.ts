@@ -74,6 +74,18 @@ function testRiskRewardAssessment(): void {
   assert(assessment.rewardScore > 60, "strong candidate should have a high reward score");
   assert(assessment.riskRewardRatio > 1, "risk/reward should be above 1");
   assert(assessment.rewardDrivers.length > 0, "reward drivers should be present");
+  assert(
+    assessment.rewardDrivers.some(driver => driver.includes("articles")),
+    "reward drivers should include theme evidence detail"
+  );
+  assert(
+    assessment.rewardDrivers.some(driver => driver.includes("gross margin")),
+    "reward drivers should include quality metrics"
+  );
+  assert(
+    assessment.rewardDrivers.some(driver => driver.includes("1-year return")),
+    "reward drivers should include momentum metrics"
+  );
   assert(assessment.riskDrivers.length > 0, "risk drivers should be present");
 }
 

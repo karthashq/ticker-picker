@@ -3,6 +3,7 @@ import {
   CompanyAssessment,
   FundamentalsSnapshot,
   MarketSnapshot,
+  NewsArticle,
   Recommendation,
   RiskLevel,
   RiskRewardAssessment
@@ -46,7 +47,7 @@ export class RiskRewardAgent {
           fundamentals,
           assessment,
           thesis: buildThesis(candidate, market, fundamentals, assessment),
-          evidence: candidate.growthArea.evidence
+          evidence: selectCandidateEvidence(candidate)
         };
       })
       .sort((a, b) => b.assessment.riskRewardRatio - a.assessment.riskRewardRatio);
@@ -289,19 +290,151 @@ function buildRewardDrivers(
   qualityScore: number
 ): string[] {
   const drivers = [
-    `Theme fit is ${candidate.trendFitScore}/100 for ${candidate.growthArea.name}.`,
-    `Momentum score is ${market.momentumScore}/100 based on historical price action.`
+    `Theme fit: ${candidate.trendFitScore}/100 for ${candidate.growthArea.name}; the theme scored ${candidate.growthArea.newsScore}/100 from ${candidate.growthArea.articleCount} articles, ${candidate.growthArea.uniqueSourceCount} sources, and ${candidate.growthArea.recentArticleCount} recent items.`,
+    `Company match: ${candidate.profile.name} matched ${formatList(candidate.matchedKeywords)} against a ${candidate.profile.industry} profile in ${candidate.profile.sector}.`,
+    `Momentum: ${market.momentumScore}/100, with 3-month return ${formatPercent(market.returns.threeMonth)}, 1-year return ${formatPercent(market.returns.oneYear)}, and 3-year annualized return ${formatPercent(market.returns.threeYearAnnualized)}.`,
+    `Stability support: ${market.stabilityScore}/100, using annualized volatility ${formatPercent(market.volatilityAnnualized)} and max drawdown ${formatPercent(market.maxDrawdown)}.`
   ];
 
-  if (qualityScore >= 65) {
-    drivers.push(`Quality score is ${qualityScore}/100 from available margin and cash-flow data.`);
+  if (fundamentals) {
+    drivers.push(
+      `Quality: ${qualityScore}/100 from gross margin ${formatPercent(fundamentals.grossMarginTtm)}, operating margin ${formatPercent(fundamentals.operatingMarginTtm)}, and free-cash-flow margin ${formatPercent(fundamentals.freeCashFlowMarginTtm)}.`
+    );
+    drivers.push(
+      `Valuation context: trailing P/E ${formatNumber(fundamentals.trailingPe)}, forward P/E ${formatNumber(fundamentals.forwardPe)}, price/sales ${formatNumber(fundamentals.priceToSales)}, and market cap ${formatMoney(fundamentals.marketCap)}.`
+    );
+  } else {
+    drivers.push("Quality and valuation used conservative fallback inputs because fundamentals were unavailable.");
   }
 
-  if (fundamentals?.forwardPe && fundamentals.forwardPe < 25) {
-    drivers.push(`Forward P/E is ${round(fundamentals.forwardPe, 1)}, which is not extreme for a growth screen.`);
+  if (candidate.profile.marketCapCategory) {
+    drivers.push(
+      `Scale/liquidity: ${candidate.profile.marketCapCategory}-cap profile contributes ${marketCapAdvantage(candidate.profile.marketCapCategory)}/100 to the reward model.`
+    );
   }
 
   return drivers;
+}
+
+function selectCandidateEvidence(candidate: CandidateCompany): NewsArticle[] {
+  const ranked = candidate.growthArea.evidence
+    .map(article => ({
+      article,
+      score: evidenceScore(candidate, article)
+    }))
+    .sort((a, b) => b.score - a.score || comparePublishedAt(b.article, a.article));
+
+  const direct = ranked
+    .filter(item => item.score > 0)
+    .map(item => item.article);
+  const fallback = ranked.map(item => item.article);
+  return dedupeArticles([...direct, ...fallback]).slice(0, 4);
+}
+
+function evidenceScore(candidate: CandidateCompany, article: NewsArticle): number {
+  const profile = candidate.profile;
+  const haystack = `${article.title} ${article.source}`.toLowerCase();
+  let score = 0;
+
+  if (containsWord(haystack, profile.ticker)) {
+    score += 12;
+  }
+
+  if (haystack.includes(profile.name.toLowerCase())) {
+    score += 10;
+  }
+
+  for (const word of significantCompanyWords(profile.name)) {
+    if (containsWord(haystack, word)) {
+      score += 3;
+    }
+  }
+
+  for (const keyword of candidate.matchedKeywords) {
+    if (haystack.includes(keyword.toLowerCase())) {
+      score += 1;
+    }
+  }
+
+  return score;
+}
+
+function dedupeArticles(articles: NewsArticle[]): NewsArticle[] {
+  const seen = new Set<string>();
+  const unique: NewsArticle[] = [];
+
+  for (const article of articles) {
+    const key = article.url || `${article.source}:${article.title}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(article);
+    }
+  }
+
+  return unique;
+}
+
+function comparePublishedAt(a: NewsArticle, b: NewsArticle): number {
+  return (a.publishedAt ?? "").localeCompare(b.publishedAt ?? "");
+}
+
+function containsWord(value: string, token: string): boolean {
+  return new RegExp(`\\b${escapeRegExp(token.toLowerCase())}\\b`).test(value);
+}
+
+function significantCompanyWords(name: string): string[] {
+  const ignored = new Set([
+    "corp",
+    "corporation",
+    "company",
+    "inc",
+    "incorporated",
+    "holding",
+    "holdings",
+    "technologies",
+    "technology"
+  ]);
+
+  return name
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(word => word.length > 2 && !ignored.has(word));
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function formatPercent(value?: number): string {
+  return value === undefined ? "unavailable" : `${round(value * 100, 1)}%`;
+}
+
+function formatNumber(value?: number): string {
+  return value === undefined ? "unavailable" : String(round(value, 2));
+}
+
+function formatMoney(value?: number): string {
+  if (value === undefined) {
+    return "unavailable";
+  }
+
+  if (value >= 1_000_000_000_000) {
+    return `$${round(value / 1_000_000_000_000, 2)}T`;
+  }
+
+  if (value >= 1_000_000_000) {
+    return `$${round(value / 1_000_000_000, 2)}B`;
+  }
+
+  if (value >= 1_000_000) {
+    return `$${round(value / 1_000_000, 2)}M`;
+  }
+
+  return `$${round(value, 2)}`;
+}
+
+function formatList(values: string[]): string {
+  return values.length > 0 ? values.join(", ") : "no direct keywords";
 }
 
 // Risk drivers call out the largest visible risk categories in plain language.
@@ -381,21 +514,26 @@ async function generateAISummary(
     : "Fundamentals unavailable.";
 
   const prompt = [
-    `You are analyzing ${profile.name} (${profile.ticker}), a ${profile.sector} company.`,
+    "TASK: Write exactly 2 sentences of plain text (no markdown, no bullets, no labels).",
+    "Sentence 1: why the company fits the growth theme + what makes it notable given the numeric signals.",
+    "Sentence 2: the single most important risk/uncertainty implied by the data.",
     "",
-    `Growth theme: "${growthArea.name}" — ${growthArea.description}`,
-    `Theme fit: ${trendFitScore}/100. Matched keywords: ${matchedKeywords.join(", ")}.`,
-    `Reward: ${rewardScore}/100. Risk: ${riskScore}/100. R/R ratio: ${riskRewardRatio}. Recommendation: ${recommendation}.`,
-    `1-year return: ${market.returns.oneYear !== undefined ? `${round(market.returns.oneYear * 100, 1)}%` : "unavailable"}.`,
+    `Company: ${profile.name} (${profile.ticker}) — sector: ${profile.sector}.`,
+    `Growth theme: ${growthArea.name} — ${growthArea.description}`,
+    `Theme fit: ${trendFitScore}/100. Keywords: ${matchedKeywords.join(", ")}.`,
+    `Scores: reward ${rewardScore}/100; risk ${riskScore}/100; R/R ${riskRewardRatio}; rec: ${recommendation}.`,
+    `1y return: ${market.returns.oneYear !== undefined ? `${round(market.returns.oneYear * 100, 1)}%` : "unavailable"}.`,
     `Volatility: ${market.volatilityAnnualized !== undefined ? `${round(market.volatilityAnnualized * 100, 1)}%` : "unavailable"}.`,
     `Max drawdown: ${market.maxDrawdown !== undefined ? `${round(market.maxDrawdown * 100, 1)}%` : "unavailable"}.`,
     fundLine,
     "",
-    "Write exactly 2 sentences: first explain why this company connects to the theme and what makes it a notable candidate; second identify the most important risk or uncertainty. Be specific and analytical. Do not give financial advice."
+    "OUTPUT:"
   ].join("\n");
 
-  return loggedComplete(
+  const raw = await loggedComplete(
     (p, t) => ai.complete(p, t),
     { caller: "risk-reward-summary", provider: ai.modelId, context: candidate.profile.ticker, prompt, maxTokens: 200 }
   );
+
+  return raw.replace(/\s+/g, " ").trim();
 }
