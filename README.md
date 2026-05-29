@@ -4,6 +4,8 @@ Ticker Picker is a TypeScript multi-agent research application. It periodically 
 
 This is research software, not financial advice. The report is designed to help you decide what to investigate further.
 
+For the agreed roadmap and newsletter intelligence design, see `FEATURE_SPEC.md`.
+
 ## Agent Flow
 
 1. `WorldNewsAgent` collects recent global news by growth-topic queries.
@@ -18,6 +20,7 @@ This is research software, not financial advice. The report is designed to help 
 
 The aggregation layer is source-aware. It now pulls or can pull from:
 
+- Newsletter Intelligence (Tiered): long-form newsletter RSS feeds (Tier 1 thesis sources + Tier 2 bear/counter sources). When an AI provider is configured, the pipeline fetches full article bodies and extracts `thesisClaim` plus `impliedTickers`.
 - GDELT: global news search, enabled by default.
 - SEC EDGAR: recent company filings for matched public companies, enabled by default. Set `SEC_USER_AGENT` to your contact string.
 - FRED: macroeconomic series signals, requires `FRED_API_KEY`.
@@ -46,6 +49,8 @@ npm run start
 
 Reports are written to `reports/` by default.
 
+You can also run `npm run run` (alias of `start`).
+
 ## Run Periodically
 
 ```bash
@@ -53,6 +58,12 @@ RUN_INTERVAL_HOURS=24 npm run schedule
 ```
 
 The scheduler runs immediately, then repeats at the configured interval.
+
+## Tests
+
+```bash
+npm test
+```
 
 ## Optional Data
 
@@ -64,7 +75,7 @@ The app runs with free, no-key sources where possible:
 - TechCrunch public post feed.
 - Yahoo Finance chart/quote endpoints for historical prices and basic valuation fields.
 
-For richer fundamentals and higher-quality aggregation, add keys:
+For richer fundamentals and higher-quality aggregation, add keys and RSS feeds:
 
 ```bash
 FMP_API_KEY=your_key npm run start
@@ -80,6 +91,13 @@ CRUNCHBASE_API_KEY=your_key
 POLYGON_API_KEY=your_key
 BENZINGA_API_KEY=your_key
 ```
+
+Newsletter intelligence (optional):
+
+- Add Tier 1 RSS URLs like `SEMIANALYSIS_RSS_URL`, `STRATECHERY_RSS_URL`, etc.
+- Add Tier 2 RSS URLs like `HINDENBURG_RSS_URL`, `GMO_RSS_URL`, `CITRON_RSS_URL`.
+- Set `NEWSLETTER_MAX_ARTICLES_PER_SOURCE` to control ingestion volume.
+- Configure an AI provider (`AI_PROVIDER` + API key) to enable `thesisClaim` / `impliedTickers` extraction; otherwise the provider can still fetch bodies but won’t extract signals.
 
 ## Customize
 
