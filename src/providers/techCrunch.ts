@@ -37,6 +37,9 @@ export class TechCrunchProvider implements NewsProvider {
             source: "TechCrunch",
             publishedAt: post.date_gmt ? `${post.date_gmt}Z` : undefined,
             matchedTopicId: topic.id,
+            sourceTier: "Tier 3 - Event trigger" as const,
+            sourceRole: "Event trigger",
+            sourceWeight: 1,
             relevanceScore: articleRelevance(topic, `${title} ${excerpt}`)
           };
         })

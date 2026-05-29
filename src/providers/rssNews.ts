@@ -34,6 +34,9 @@ export class ConfiguredRssNewsProvider implements NewsProvider {
           source: this.sourceName,
           publishedAt: toIsoDate(item.pubDate),
           matchedTopicId: topic.id,
+          sourceTier: "Tier 3 - Event trigger" as const,
+          sourceRole: "Event trigger",
+          sourceWeight: 1,
           relevanceScore: articleRelevance(topic, `${item.title} ${item.description ?? ""}`)
         }))
         .filter(article => (article.relevanceScore ?? 0) > 0)

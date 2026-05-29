@@ -13,6 +13,10 @@ export class CompanyDiscoveryAgent {
     for (const growthArea of growthAreas) {
       const matches = this.config.companyUniverse
         .map(profile => {
+          const ticker = profile.ticker.toUpperCase();
+          const impliedArticles = growthArea.evidence.filter(article =>
+            article.impliedTickers?.some(impliedTicker => impliedTicker.toUpperCase() === ticker)
+          );
           const matchedKeywords = profile.keywords.filter(keyword =>
             growthArea.keywords.some(
               topicKeyword =>
@@ -20,6 +24,7 @@ export class CompanyDiscoveryAgent {
                 keyword.toLowerCase().includes(topicKeyword.toLowerCase())
             )
           );
+          const impliedSources = [...new Set(impliedArticles.map(article => article.source))];
           const industryOverlap = words(profile.industry).filter(word =>
             words(growthArea.industry).includes(word)
           ).length;
@@ -28,15 +33,22 @@ export class CompanyDiscoveryAgent {
             .includes(profile.sector.toLowerCase())
             ? 1
             : 0;
+          const impliedScore = impliedArticles.reduce(
+            (score, article) => score + 26 * (article.sourceWeight ?? 1),
+            impliedSources.length * 8
+          );
           const rawScore =
-            matchedKeywords.length * 18 + industryOverlap * 8 + sectorOverlap * 10;
+            matchedKeywords.length * 18 + industryOverlap * 8 + sectorOverlap * 10 + impliedScore;
           const trendFitScore = round(clamp(rawScore + growthArea.newsScore * 0.35, 0, 100), 1);
 
           return {
             profile,
             growthArea,
             trendFitScore,
-            matchedKeywords
+            matchedKeywords: [
+              ...matchedKeywords,
+              ...impliedSources.map(source => `implied by ${source}`)
+            ]
           };
         })
         .filter(candidate => candidate.trendFitScore >= 30)

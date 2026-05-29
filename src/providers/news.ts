@@ -44,6 +44,9 @@ export class GdeltNewsProvider implements NewsProvider {
         language: article.language,
         publishedAt: parseGdeltDate(article.seendate),
         matchedTopicId: topic.id,
+        sourceTier: "Tier 3 - Event trigger" as const,
+        sourceRole: "Event trigger",
+        sourceWeight: 1,
         relevanceScore: calculateArticleRelevance(topic, article.title ?? "")
       }))
       // Keep the report readable and avoid recommending stocks from articles

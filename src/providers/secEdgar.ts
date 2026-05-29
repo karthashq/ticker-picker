@@ -147,6 +147,9 @@ export class SecEdgarProvider implements NewsProvider {
         source: "SEC EDGAR",
         publishedAt: `${filingDate}T00:00:00Z`,
         matchedTopicId: topic.id,
+        sourceTier: "Tier 3 - Event trigger",
+        sourceRole: "Event trigger",
+        sourceWeight: 1,
         relevanceScore: 4 + articleRelevance(topic, `${title} ${company.name} ${company.keywords.join(" ")}`)
       });
     }

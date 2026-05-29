@@ -1,8 +1,16 @@
 export type Recommendation =
-  | "High-priority research candidate"
-  | "Consider with position-sizing discipline"
-  | "Watchlist"
-  | "Avoid for now";
+  | "WATCH"
+  | "INVEST"
+  | "ADD"
+  | "HOLD"
+  | "REDUCE"
+  | "EXIT";
+
+export type SourceTier =
+  | "Tier 1 - Thesis generator"
+  | "Tier 2 - Bear / counter-source"
+  | "Tier 3 - Event trigger"
+  | "Tier 4 - Phase 2 source";
 
 export type RiskLevel = "low" | "medium" | "high";
 
@@ -57,6 +65,11 @@ export interface NewsArticle {
   country?: string;
   matchedTopicId?: string;
   relevanceScore?: number;
+  impliedTickers?: string[];
+  thesisClaim?: string;
+  sourceTier?: SourceTier;
+  sourceRole?: string;
+  sourceWeight?: number;
 }
 
 // GrowthArea is the news agent's signal after scoring a topic. It contains the

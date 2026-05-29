@@ -258,8 +258,9 @@ function classifyRisk(riskScore: number): RiskLevel {
   return "high";
 }
 
-// Recommendation labels are conservative. In particular, a stock cannot be
-// "High-priority" unless fundamentals were available for this run.
+// Recommendation labels use the six-state thesis-card system. This stateless
+// pipeline can originate WATCH/INVEST ideas; ADD/HOLD/REDUCE/EXIT require the
+// future portfolio-monitoring layer described in Phase 2.
 function classifyRecommendation(
   rewardScore: number,
   riskScore: number,
@@ -267,18 +268,10 @@ function classifyRecommendation(
   hasFundamentals: boolean
 ): Recommendation {
   if (hasFundamentals && ratio >= 1.65 && rewardScore >= 68 && riskScore <= 55) {
-    return "High-priority research candidate";
+    return "INVEST";
   }
 
-  if (ratio >= 1.25 && rewardScore >= 58) {
-    return "Consider with position-sizing discipline";
-  }
-
-  if (ratio >= 0.9 || rewardScore >= 52) {
-    return "Watchlist";
-  }
-
-  return "Avoid for now";
+  return "WATCH";
 }
 
 // Human-readable reward drivers are generated from the same metrics used in the
@@ -338,6 +331,10 @@ function evidenceScore(candidate: CandidateCompany, article: NewsArticle): numbe
 
   if (containsWord(haystack, profile.ticker)) {
     score += 12;
+  }
+
+  if (article.impliedTickers?.some(ticker => ticker.toUpperCase() === profile.ticker.toUpperCase())) {
+    score += 30 * (article.sourceWeight ?? 1);
   }
 
   if (haystack.includes(profile.name.toLowerCase())) {

@@ -63,6 +63,9 @@ export class PolygonNewsProvider implements NewsProvider {
             source: item.publisher?.name ? `Polygon / ${item.publisher.name}` : "Polygon",
             publishedAt: item.published_utc,
             matchedTopicId: topic.id,
+            sourceTier: "Tier 3 - Event trigger",
+            sourceRole: "Event trigger",
+            sourceWeight: 1,
             relevanceScore: articleRelevance(topic, `${item.title} ${item.description ?? ""} ${company.name}`)
           });
         }

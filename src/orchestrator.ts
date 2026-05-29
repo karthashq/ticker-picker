@@ -29,6 +29,7 @@ import { CrunchbaseProvider } from "./providers/crunchbase";
 import { FredMacroProvider } from "./providers/fred";
 import { GoogleTrendsRssProvider } from "./providers/googleTrends";
 import { GdeltNewsProvider } from "./providers/news";
+import { NewsletterNewsProvider } from "./providers/newsletterNews";
 import { PolygonNewsProvider } from "./providers/polygonNews";
 import { RedditProvider } from "./providers/reddit";
 import { ConfiguredRssNewsProvider } from "./providers/rssNews";
@@ -184,6 +185,7 @@ function collectProviderWarnings(provider: NewsProvider): string[] {
 
 function buildDefaultNewsProvider(config: AppConfig, aiProvider: AIProvider): NewsProvider {
   const providers: NewsProvider[] = [
+    new NewsletterNewsProvider(aiProvider, config.companyUniverse),
     new GdeltNewsProvider(),
     new SecEdgarProvider(config.companyUniverse),
     new FredMacroProvider(),

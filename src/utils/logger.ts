@@ -45,7 +45,7 @@ export const log = {
 
 export interface AICallLogEntry {
   timestamp: string;
-  caller: "ai-news" | "ai-fundamentals" | "risk-reward-summary" | "exec-summary";
+  caller: "ai-news" | "ai-fundamentals" | "newsletter-intelligence" | "risk-reward-summary" | "exec-summary";
   provider: string;
   context: string;
   promptChars: number;

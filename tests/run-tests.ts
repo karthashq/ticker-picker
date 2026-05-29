@@ -1,7 +1,8 @@
 import assert from "assert";
+import { CompanyDiscoveryAgent } from "../src/agents/CompanyDiscoveryAgent";
 import { assessCandidate } from "../src/agents/RiskRewardAgent";
 import { buildMarketSnapshot } from "../src/market/metrics";
-import { CandidateCompany, FundamentalsSnapshot, GrowthArea, PricePoint } from "../src/types";
+import { AppConfig, CandidateCompany, FundamentalsSnapshot, GrowthArea, PricePoint } from "../src/types";
 
 // Market snapshot tests use a steady upward price series so the expected
 // direction of returns, momentum, and drawdown is easy to reason about.
@@ -73,6 +74,7 @@ function testRiskRewardAssessment(): void {
 
   assert(assessment.rewardScore > 60, "strong candidate should have a high reward score");
   assert(assessment.riskRewardRatio > 1, "risk/reward should be above 1");
+  assert.strictEqual(assessment.recommendation, "INVEST", "strong candidate should map to INVEST");
   assert(assessment.rewardDrivers.length > 0, "reward drivers should be present");
   assert(
     assessment.rewardDrivers.some(driver => driver.includes("articles")),
@@ -130,7 +132,7 @@ function testMissingFundamentalsCapsRecommendation(): void {
 
   assert.notStrictEqual(
     assessment.recommendation,
-    "High-priority research candidate",
+    "INVEST",
     "missing fundamentals should cap the recommendation"
   );
   assert(
@@ -139,12 +141,75 @@ function testMissingFundamentalsCapsRecommendation(): void {
   );
 }
 
+// Newsletter intelligence can imply a ticker even when the company keywords do
+// not overlap the growth topic. This guards the secondary discovery path.
+function testImpliedTickerDiscovery(): void {
+  const growthArea: GrowthArea = {
+    id: "advanced-packaging",
+    name: "Advanced packaging",
+    industry: "Semiconductors",
+    description: "AI chip packaging constraints",
+    keywords: ["cowos", "packaging"],
+    newsScore: 70,
+    articleCount: 1,
+    uniqueSourceCount: 1,
+    recentArticleCount: 1,
+    detectedAt: new Date().toISOString(),
+    evidence: [
+      {
+        title: "SemiAnalysis: packaging bottleneck",
+        url: "https://example.com/packaging",
+        source: "SemiAnalysis",
+        publishedAt: new Date().toISOString(),
+        relevanceScore: 5,
+        impliedTickers: ["AMAT"],
+        thesisClaim: "Advanced packaging demand benefits AMAT because more deposition tools are needed.",
+        sourceTier: "Tier 1 - Thesis generator",
+        sourceRole: "Thesis generator",
+        sourceWeight: 3
+      }
+    ]
+  };
+  const config: AppConfig = {
+    reportDir: "reports",
+    run: {
+      maxArticlesPerTopic: 5,
+      maxGrowthAreas: 1,
+      maxCompaniesPerArea: 3,
+      minNewsScore: 10,
+      priceHistoryRange: "5y",
+      schedulerIntervalHours: 24
+    },
+    topics: [],
+    companyUniverse: [
+      {
+        ticker: "AMAT",
+        name: "Applied Materials",
+        sector: "Technology",
+        industry: "Semiconductor equipment",
+        country: "US",
+        marketCapCategory: "large",
+        keywords: ["deposition", "etch", "wafer tools"]
+      }
+    ]
+  };
+
+  const candidates = new CompanyDiscoveryAgent(config).run([growthArea]);
+  assert.strictEqual(candidates.length, 1, "implied ticker should create a candidate");
+  assert.strictEqual(candidates[0].profile.ticker, "AMAT");
+  assert(
+    candidates[0].matchedKeywords.some(keyword => keyword.includes("implied by SemiAnalysis")),
+    "candidate should retain implied-source evidence"
+  );
+}
+
 // A tiny custom runner keeps the project dependency-light while still giving us
 // repeatable checks for the core scoring logic.
 const tests = [
   testMarketSnapshot,
   testRiskRewardAssessment,
-  testMissingFundamentalsCapsRecommendation
+  testMissingFundamentalsCapsRecommendation,
+  testImpliedTickerDiscovery
 ];
 
 for (const test of tests) {

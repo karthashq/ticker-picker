@@ -61,6 +61,9 @@ export class BenzingaNewsProvider implements NewsProvider {
             source: "Benzinga",
             publishedAt: item.created ?? item.updated,
             matchedTopicId: topic.id,
+            sourceTier: "Tier 3 - Event trigger" as const,
+            sourceRole: "Event trigger",
+            sourceWeight: 1,
             relevanceScore: articleRelevance(topic, `${item.title} ${teaser}`)
           };
         })

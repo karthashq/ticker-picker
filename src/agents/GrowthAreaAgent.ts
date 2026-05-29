@@ -19,6 +19,10 @@ export class GrowthAreaAgent {
       const uniqueSources = new Set(
         relevantArticles.map(article => article.source).filter(Boolean)
       );
+      const weightedArticleCount = relevantArticles.reduce(
+        (sum, article) => sum + (article.sourceWeight ?? 1),
+        0
+      );
       const recentArticles = relevantArticles.filter(article => {
         if (!article.publishedAt) {
           return false;
@@ -28,17 +32,17 @@ export class GrowthAreaAgent {
         return ageMs >= 0 && ageMs <= RECENT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
       });
       const keywordDensity = calculateKeywordDensity(topic.keywords, relevantArticles);
+      const rankedEvidence = [...(relevantArticles.length > 0 ? relevantArticles : articles)]
+        .sort((a, b) => weightedArticleScore(b) - weightedArticleScore(a));
       const evidence =
-        relevantArticles.length > 0
-          ? relevantArticles.slice(0, EVIDENCE_ARTICLE_LIMIT)
-          : articles.slice(0, EVIDENCE_ARTICLE_LIMIT);
+        rankedEvidence.slice(0, EVIDENCE_ARTICLE_LIMIT);
       const newsScore = round(
         clamp(
-          relevantArticles.length * 5 +
+          weightedArticleCount * 5 +
             uniqueSources.size * 1.2 +
-            recentArticles.length * 2 +
+            weightedRecentCount(recentArticles) * 2 +
             keywordDensity * 35 +
-            articles.length * 0.2,
+            weightedArticleCount * 0.2,
           0,
           100
         ),
@@ -98,4 +102,12 @@ function calculateKeywordDensity(keywords: string[], articles: NewsArticle[]): n
     .join(" ");
   const hits = keywords.filter(keyword => corpus.includes(keyword.toLowerCase())).length;
   return hits / keywords.length;
+}
+
+function weightedRecentCount(articles: NewsArticle[]): number {
+  return articles.reduce((sum, article) => sum + (article.sourceWeight ?? 1), 0);
+}
+
+function weightedArticleScore(article: NewsArticle): number {
+  return (article.relevanceScore ?? 0) * (article.sourceWeight ?? 1);
 }
